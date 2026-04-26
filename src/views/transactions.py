@@ -9,7 +9,7 @@ import pandas as pd
 import streamlit as st
 import yaml
 
-from src import db, tax
+from src import db, profile_config, tax
 
 
 _TAX_RULES_PATH = Path(__file__).resolve().parent.parent.parent / "config" / "tax_rules.yaml"
@@ -265,10 +265,15 @@ def _dividend_form() -> None:
         return
 
     st.subheader("💵 분배금/배당금 입력")
-    st.caption(
-        "분배금이 입금되면 한 줄씩 입력. 세전·원천징수·입금액을 함께 기록해 "
-        "법인세 신고 시 외국납부세액 공제에 활용."
-    )
+    if profile_config.is_personal():
+        st.caption(
+            "분배금이 입금되면 한 줄씩 입력. 세전·원천징수·입금액을 함께 기록."
+        )
+    else:
+        st.caption(
+            "분배금이 입금되면 한 줄씩 입력. 세전·원천징수·입금액을 함께 기록해 "
+            "법인세 신고 시 외국납부세액 공제에 활용."
+        )
     st.info(
         f"💡 **{_current_fiscal_year_label()} 분배금만 입력**하시면 됩니다. "
         "작년 이전 분배금은 이미 결산 완료된 영역이라 입력 불필요."

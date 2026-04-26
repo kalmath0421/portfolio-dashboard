@@ -4,16 +4,19 @@
 
 ## 한눈에 보는 현재 배포
 
-| 항목 | 값 |
-|---|---|
-| 호스트 | 시놀로지 NAS (`synol918`, `192.168.50.20`) |
-| 컨테이너 경로 | `/volume1/docker/portfolio-dashboard/` |
-| 컨테이너 이름 | `portfolio-dashboard` |
-| 내부 포트 | `8501` (Streamlit) |
-| 외부 포트 | `4443` |
-| 외부 URL | `https://portfolio.kalmath.i234.me:4443` |
-| 인증서 | Let's Encrypt (`portfolio.kalmath.i234.me`) |
-| DB 위치 | NAS의 `data/portfolio.db` (호스트 볼륨 마운트) |
+NAS 한 대에 **두 인스턴스가 동시에 운영 중**. 같은 코드베이스(같은 이미지)에서
+환경변수만 다르게 띄움.
+
+| 항목 | 인스턴스 1 (법인) | 인스턴스 2 (아란) |
+|---|---|---|
+| 호스트 | 시놀로지 NAS (`synol918`, `192.168.50.20`) | 동일 |
+| 컨테이너 경로 | `/volume1/docker/portfolio-dashboard/` | `/volume1/docker/portfolio-dashboard-aran/` |
+| 컨테이너 이름 | `portfolio-dashboard` | `portfolio-dashboard-aran` |
+| 내부 포트 | `8501` | `4444 → 8501` |
+| 프로파일 | `corp` (기본) | `personal` |
+| 외부 URL | `https://portfolio.kalmath.i234.me:4443` | `https://aran.kalmath.i234.me:4443` |
+| 인증서 | Let's Encrypt (`portfolio.kalmath.i234.me`) | Let's Encrypt (`aran.kalmath.i234.me`) |
+| DB 위치 | `data/portfolio.db` (호스트 볼륨) | 동일 (각자 별도 폴더) |
 
 ## 오늘 한 일 요약 (2026-04-26)
 
@@ -41,12 +44,17 @@
 ### ~~1) Material Symbols 아이콘~~ ✅ 해결 (2026-04-26)
 모바일에서 사이드바 토글 버튼이 `keyboard_double_arrow_right` ligature 텍스트로 노출되던 문제. 원인은 `style.py`의 글로벌 `font-family !important` 룰이 아이콘 element의 Material Symbols 폰트까지 덮어버린 것. 해결: 아이콘 element selector(`[data-testid="stIconMaterial"]`, `.material-symbols-*` 등)에 명시적으로 `font-family: 'Material Symbols Rounded'` + `font-feature-settings: 'liga'` 강제 지정.
 
-### 2) 두 번째 사용자 인스턴스
-같은 NAS에 컨테이너 하나 더 띄워서 두 번째 사람용 분리 운영.
-- 경로: `/volume1/docker/portfolio-dashboard-2/`
-- 외부 포트: `4444` (예시)
-- 서브도메인: `portfolio2.kalmath.i234.me` (예시)
-- 코드 변경 0, `docker-compose.yml`만 수정 (포트·컨테이너명)
+### ~~2) 두 번째 사용자 인스턴스~~ ✅ 해결 (2026-04-27)
+"아란의 포트폴리오" 인스턴스 추가 완료. 환경변수(`DASHBOARD_PROFILE=personal`)로
+같은 코드베이스에서 법인 모드/개인 모드를 분기하도록 리팩토링하고 두 번째 컨테이너
+띄움. 실제 적용된 값:
+- 폴더: `/volume1/docker/portfolio-dashboard-aran/`
+- 컨테이너명: `portfolio-dashboard-aran`
+- NAS 내부 포트: `4444 → 8501`
+- 외부 URL: `https://aran.kalmath.i234.me:4443` (4443 공유 + DSM 리버스 프록시 호스트네임 분기)
+- 인증서: Let's Encrypt (`aran.kalmath.i234.me`, 만료 2026-07-26)
+- compose 파일: `docker-compose.aran.yml` (리포에 커밋, 그대로 복사 후 사용)
+- ASUS 추가 작업 ❌ (4443/80 기존 포트포워딩 그대로 활용)
 
 ### 3) 보안
 - DSM `admin` 계정에 강력한 비밀번호 + 2FA 적용
@@ -72,31 +80,40 @@ sudo docker logs portfolio-dashboard --tail 30
 ### 데이터 백업
 DSM Hyper Backup 또는 BTRFS 스냅샷으로 `/volume1/docker/portfolio-dashboard/data/` 보호.
 
-## 두 번째 인스턴스 추가 절차
+## 두 번째 인스턴스 추가 절차 (실제 검증된 절차)
+
+리포지토리에 `docker-compose.aran.yml` 이 미리 포함돼 있어 복사 한 번으로 끝.
+새 인스턴스를 추가하려면 컨테이너명·외부 도메인만 바꿔서 같은 패턴을 따르면 된다.
 
 ```bash
-cd /volume1/docker
-sudo wget https://github.com/kalmath0421/portfolio-dashboard/archive/refs/heads/main.tar.gz -O /tmp/p2.tar.gz
-sudo mkdir -p portfolio-dashboard-2 && cd portfolio-dashboard-2
-sudo tar -xzf /tmp/p2.tar.gz --strip-components=1
-sudo mkdir -p data
-```
-
-`docker-compose.yml` 수정 (컨테이너명·포트 변경):
-```yaml
-services:
-  portfolio:
-    container_name: portfolio-dashboard-2
-    ports:
-      - "4444:8501"
-```
-
-빌드 & 실행:
-```bash
+sudo mkdir -p /volume1/docker/portfolio-dashboard-aran
+cd /volume1/docker/portfolio-dashboard-aran
+sudo wget https://github.com/kalmath0421/portfolio-dashboard/archive/refs/heads/main.tar.gz -O /tmp/aran.tar.gz
+sudo tar -xzf /tmp/aran.tar.gz --strip-components=1
+sudo mkdir -p data config
+sudo cp docker-compose.aran.yml docker-compose.yml
 sudo docker compose up -d --build
 ```
 
-DSM 리버스 프록시에 항목 추가 (`portfolio2.kalmath.i234.me:4443` → `localhost:4444`), 인증서 별도 발급, ASUS에 4444 포트포워딩.
+`docker-compose.aran.yml` 안에서 컨테이너명·포트·환경변수가 미리 셋업돼 있다:
+- `container_name: portfolio-dashboard-aran`
+- `ports: 4444:8501`
+- `DASHBOARD_PROFILE=personal`
+- `DASHBOARD_TITLE=아란의 포트폴리오`
+
+다음으로 DSM에서:
+1. **제어판 → 로그인 포털 → 고급 → 리버스 프록시 → 생성**
+   - 소스: `HTTPS aran.kalmath.i234.me:4443`
+   - 대상: `HTTP localhost:4444`
+   - 사용자 정의 머리글 → 만들기 → WebSocket
+2. **제어판 → 보안 → 인증서 → 추가 → Let's Encrypt**
+   - 도메인: `aran.kalmath.i234.me`
+3. **인증서 → 설정** 에서 `aran.kalmath.i234.me:4443` ↔ 새 인증서 매핑 (보통 자동).
+
+ASUS 공유기 작업 불필요 — 4443/80 포트포워딩이 이미 첫 인스턴스 셋업 시 추가됐고
+새 도메인은 ipTime 와일드카드 DDNS로 같은 공인 IP에 매핑됨.
+
+세 번째 사람을 더 추가하려면 `aran` → 새 이름으로 바꿔 똑같이.
 
 ## 트러블슈팅 표
 

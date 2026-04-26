@@ -6,7 +6,7 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 
-from src import db
+from src import db, profile_config
 
 
 CATEGORY_OPTIONS = list(db.CATEGORIES.keys())
@@ -198,11 +198,18 @@ def _bulk_seed_form(accounts: list[sqlite3.Row]) -> None:
     if not accounts:
         return
     with st.expander("💡 명세서 기본 종목을 특정 계좌에 일괄 등록", expanded=False):
-        st.caption(
-            "법인 계좌: TIGER 코리아TOP10 외 4종 ETF · "
-            "개인 계좌: NVDA·MSFT·TSLA·AMZN·GOOGL·XLU·QQQJ·SPYM(미국) + 삼성전자·우리금융지주·SK스퀘어(국내). "
-            "이미 등록된 티커는 건너뜁니다."
-        )
+        if profile_config.is_personal():
+            st.caption(
+                "NVDA·MSFT·TSLA·AMZN·GOOGL·XLU·QQQJ·SPYM(미국) + "
+                "삼성전자·우리금융지주·SK스퀘어(국내). "
+                "이미 등록된 티커는 건너뜁니다."
+            )
+        else:
+            st.caption(
+                "법인 계좌: TIGER 코리아TOP10 외 4종 ETF · "
+                "개인 계좌: NVDA·MSFT·TSLA·AMZN·GOOGL·XLU·QQQJ·SPYM(미국) + 삼성전자·우리금융지주·SK스퀘어(국내). "
+                "이미 등록된 티커는 건너뜁니다."
+            )
         with st.form("bulk_seed_form", clear_on_submit=False):
             c1, c2 = st.columns([3, 1])
             with c1:
@@ -237,10 +244,16 @@ def render() -> None:
     accounts = db.list_accounts(active_only=True)
 
     if not accounts:
-        st.warning(
-            "👋 활성 계좌가 없습니다. 먼저 사이드바 **🏦 계좌 관리** 메뉴에서 "
-            "법인/개인 계좌를 추가하세요. 계좌명은 자유롭게 정할 수 있습니다."
-        )
+        if profile_config.is_personal():
+            st.warning(
+                "👋 활성 계좌가 없습니다. 먼저 사이드바 **🏦 계좌 관리** 메뉴에서 "
+                "계좌를 추가하세요. 계좌명은 자유롭게 정할 수 있습니다."
+            )
+        else:
+            st.warning(
+                "👋 활성 계좌가 없습니다. 먼저 사이드바 **🏦 계좌 관리** 메뉴에서 "
+                "법인/개인 계좌를 추가하세요. 계좌명은 자유롭게 정할 수 있습니다."
+            )
         return
 
     corp_accounts = [a for a in accounts if a["kind"] == db.KIND_CORP]

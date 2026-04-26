@@ -9,7 +9,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from src import analytics, db, prices, tax
+from src import analytics, db, prices, profile_config, tax
 
 
 D = Decimal
@@ -110,23 +110,24 @@ def _gather() -> dict:
 
 
 def render_header() -> None:
-    """모든 페이지 상단 공통 4개 메트릭."""
+    """모든 페이지 상단 공통 메트릭. corp 모드는 4개, personal 모드는 3개."""
     s = _gather()
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
+    is_personal = profile_config.is_personal()
+    cols = st.columns(3 if is_personal else 4)
+    with cols[0]:
         st.metric(
             "총 평가금액 (KRW)",
             _format_krw(s["total_mv"]),
             delta=_format_pct(s["return_pct"]),
             help="모든 활성 종목의 평가금액 합 (USD는 현재 환율로 환산)",
         )
-    with c2:
+    with cols[1]:
         st.metric(
             "투자원금 (KRW)",
             _format_krw(s["total_cost"]),
             help="평균단가 × 보유수량의 합 (USD는 매입 시점 환율)",
         )
-    with c3:
+    with cols[2]:
         delta_str = (
             f"세후 {_format_krw(s['div_net'])}" if s["div_gross"] > 0 else None
         )
@@ -136,15 +137,16 @@ def render_header() -> None:
             delta=delta_str,
             help="입력된 분배금 합계",
         )
-    with c4:
-        if s["expected_tax"]:
-            st.metric(
-                "사업연도 예상 추가 법인세",
-                _format_krw(s["expected_tax"]["net_additional_after_credit"]),
-                help="투자 외 본업 소득 0원 가정. '💰 세금 추적'에서 정밀 계산.",
-            )
-        else:
-            st.metric("사업연도 예상 추가 법인세", "—")
+    if not is_personal:
+        with cols[3]:
+            if s["expected_tax"]:
+                st.metric(
+                    "사업연도 예상 추가 법인세",
+                    _format_krw(s["expected_tax"]["net_additional_after_credit"]),
+                    help="투자 외 본업 소득 0원 가정. '💰 세금 추적'에서 정밀 계산.",
+                )
+            else:
+                st.metric("사업연도 예상 추가 법인세", "—")
 
 
 def _account_cards(valuations: list[analytics.HoldingValuation]) -> None:
@@ -270,6 +272,9 @@ def _allocation_donut(valuations: list[analytics.HoldingValuation]) -> None:
 
 
 def _fy_tax_panel(s: dict) -> None:
+    # 법인세 패널 — personal 모드에서는 불필요하므로 스킵.
+    if profile_config.is_personal():
+        return
     if not s["fy_summary"] or not s["expected_tax"]:
         return
     fy = s["fy_summary"]
