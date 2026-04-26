@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+
+# Project data
+data/portfolio.db
+data/portfolio.db-journal
+data/portfolio.db-wal
+data/portfolio.db-shm
+data/inbox/ibk/*.csv
+data/inbox/nh/*.csv
+data/backup/
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+
+# Streamlit
+.streamlit/secrets.toml

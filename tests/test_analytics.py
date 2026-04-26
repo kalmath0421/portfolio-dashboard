@@ -1,0 +1,246 @@
+"""analytics.py - 평균단가, 실현손익, 환차분리 테스트."""
+from __future__ import annotations
+
+from decimal import Decimal
+
+import pytest
+
+from src.analytics import (
+    aggregate_by_account,
+    contribution_breakdown,
+    fx_attribution_table,
+    fx_attribution_usd,
+    replay_positions,
+    total_market_value,
+    total_unrealized,
+    value_position,
+)
+
+
+D = Decimal
+
+
+def _tx(**kw):
+    base = {"trade_date": "2026-01-01", "account_id": 1, "ticker": "X",
+            "side": "BUY", "quantity": 10, "price": 100, "currency": "KRW",
+            "fx_rate": None, "fee": 0}
+    base.update(kw)
+    return base
+
+
+def _div(**kw):
+    base = {"pay_date": "2026-02-01", "account_id": 1, "ticker": "X",
+            "currency": "KRW", "gross_krw": 0, "net_krw": 0}
+    base.update(kw)
+    return base
+
+
+class TestKrwAveraging:
+    def test_two_buys_weighted_average(self):
+        states = replay_positions([
+            _tx(trade_date="2026-01-01", quantity=10, price=1000),
+            _tx(trade_date="2026-01-02", quantity=10, price=1500),
+        ])
+        s = states[(1, "X")]
+        assert s.quantity == D(20)
+        # (10*1000 + 10*1500) / 20 = 1250
+        assert s.avg_cost_local == D(1250)
+
+    def test_buy_then_sell_realized(self):
+        states = replay_positions([
+            _tx(trade_date="2026-01-01", quantity=10, price=1000),
+            _tx(trade_date="2026-01-02", quantity=10, price=1500),
+            _tx(trade_date="2026-01-03", side="SELL", quantity=5, price=2000),
+        ])
+        s = states[(1, "X")]
+        # 평균 1250, 5주 매도 @2000 → (2000-1250)*5 = 3750
+        assert s.realized_pnl_krw == D(3750)
+        assert s.quantity == D(15)
+        # 매도 후 평균단가는 그대로 (이동평균법)
+        assert s.avg_cost_local == D(1250)
+
+    def test_full_sell_resets_avg(self):
+        states = replay_positions([
+            _tx(trade_date="2026-01-01", quantity=10, price=1000),
+            _tx(trade_date="2026-01-02", side="SELL", quantity=10, price=1200),
+        ])
+        s = states[(1, "X")]
+        assert s.quantity == D(0)
+        assert s.avg_cost_local == D(0)
+        assert s.realized_pnl_krw == D(2000)
+
+
+class TestUsdAveraging:
+    def test_usd_two_buys_track_fx_average(self):
+        states = replay_positions([
+            _tx(currency="USD", quantity=10, price=100, fx_rate=1100),
+            _tx(currency="USD", trade_date="2026-01-02",
+                quantity=10, price=120, fx_rate=1300),
+        ])
+        s = states[(1, "X")]
+        # 가격 평균: (10*100 + 10*120)/20 = 110
+        assert s.avg_cost_local == D(110)
+        # 환율 평균: (10*1100 + 10*1300)/20 = 1200
+        assert s.avg_cost_fx == D(1200)
+
+    def test_usd_sell_includes_fx_gain(self):
+        states = replay_positions([
+            _tx(currency="USD", quantity=10, price=100, fx_rate=1100),
+            _tx(currency="USD", trade_date="2026-01-02", side="SELL",
+                quantity=10, price=110, fx_rate=1300),
+        ])
+        s = states[(1, "X")]
+        # 매수 KRW: 10*100*1100 = 1,100,000
+        # 매도 KRW: 10*110*1300 = 1,430,000
+        # 차익 330,000
+        assert s.realized_pnl_krw == D(330000)
+
+
+class TestValuation:
+    def test_unrealized_krw(self):
+        states = replay_positions([
+            _tx(quantity=10, price=1000),
+        ])
+        s = states[(1, "X")]
+        v = value_position(s, current_price_local=1500, current_fx=None)
+        assert v.market_value_krw == D(15000)
+        assert v.unrealized_pnl_krw == D(5000)
+        # KRW 종목은 현지=원화이므로 양쪽 동일
+        assert v.market_value_local == D(15000)
+        assert v.unrealized_pnl_local == D(5000)
+        assert v.return_pct_local == D("50.00")
+        assert v.return_pct_krw == D("50.00")
+
+    def test_unrealized_usd_split_currencies(self):
+        states = replay_positions([
+            _tx(currency="USD", quantity=10, price=100, fx_rate=1100),
+        ])
+        s = states[(1, "X")]
+        v = value_position(s, current_price_local=120, current_fx=1300)
+        # 현지(USD): 평가 1200, 원가 1000, 손익 200, 수익률 20%
+        assert v.market_value_local == D(1200)
+        assert v.cost_basis_local == D(1000)
+        assert v.unrealized_pnl_local == D(200)
+        assert v.return_pct_local == D("20.00")
+        # 원화: 평가 1,560,000 / 원가 1,100,000 / 손익 460,000
+        assert v.market_value_krw == D(1560000)
+        assert v.cost_basis_krw == D(1100000)
+        assert v.unrealized_pnl_krw == D(460000)
+        # 원화 수익률: 460000 / 1100000 = 41.82%
+        assert v.return_pct_krw == D("41.82")
+
+    def test_usd_no_price_yet_keeps_cost_basis(self):
+        """현재가 없어도 매수원가는 산출돼야 한다."""
+        states = replay_positions([
+            _tx(currency="USD", quantity=10, price=100, fx_rate=1100),
+        ])
+        s = states[(1, "X")]
+        v = value_position(s, current_price_local=None, current_fx=None)
+        assert v.cost_basis_local == D(1000)
+        assert v.cost_basis_krw == D(1100000)
+        assert v.market_value_local is None
+        assert v.return_pct_krw is None
+
+
+class TestFxAttribution:
+    def test_split_into_price_fx_cross(self):
+        states = replay_positions([
+            _tx(currency="USD", quantity=10, price=100, fx_rate=1100),
+        ])
+        s = states[(1, "X")]
+        attr = fx_attribution_usd(s, current_price_local=120, current_fx=1300)
+        # price_effect: 10 * 20 * 1100 = 220,000
+        # fx_effect:    10 * 100 * 200 = 200,000
+        # cross_term:   10 * 20 * 200 = 40,000
+        # total: 460,000 (미실현과 일치)
+        assert attr["price_effect"] == D(220000)
+        assert attr["fx_effect"] == D(200000)
+        assert attr["cross_term"] == D(40000)
+        assert attr["price_effect"] + attr["fx_effect"] + attr["cross_term"] == D(460000)
+
+
+class TestContributionAndAggregates:
+    def test_total_market_value(self):
+        states = replay_positions([
+            _tx(ticker="A", quantity=10, price=100),
+            _tx(ticker="B", quantity=5, price=200),
+        ])
+        v_a = value_position(states[(1, "A")], 150, None)
+        v_b = value_position(states[(1, "B")], 250, None)
+        assert total_market_value([v_a, v_b]) == D(2750)
+
+    def test_contribution_breakdown_signed(self):
+        states = replay_positions([
+            _tx(ticker="GAIN", quantity=10, price=100),
+            _tx(ticker="LOSS", quantity=10, price=200),
+        ])
+        v_gain = value_position(states[(1, "GAIN")], 150, None)
+        v_loss = value_position(states[(1, "LOSS")], 100, None)
+        breakdown = contribution_breakdown([v_gain, v_loss])
+        # GAIN: +500, LOSS: -1000, abs_sum=1500
+        # 가장 좋은 게 먼저 (양수 우선)
+        assert breakdown[0]["ticker"] == "GAIN"
+        assert breakdown[0]["unrealized_pnl_krw"] == D(500)
+        assert breakdown[1]["ticker"] == "LOSS"
+        assert breakdown[1]["unrealized_pnl_krw"] == D(-1000)
+
+
+class TestAccountAggregation:
+    def test_currency_separation(self):
+        states = replay_positions([
+            _tx(account_id=1, ticker="NVDA", currency="USD",
+                quantity=10, price=100, fx_rate=1100),
+            _tx(account_id=1, ticker="005930", currency="KRW",
+                quantity=100, price=70000),
+        ])
+        v_usd = value_position(states[(1, "NVDA")], 120, 1300)
+        v_krw = value_position(states[(1, "005930")], 80000, None)
+        agg = aggregate_by_account([v_usd, v_krw])[1]
+
+        # USD 종목: 평가 USD 1200, KRW 환산 1,560,000
+        assert agg["market_value_usd"] == D(1200)
+        # KRW 종목: 평가 8,000,000 (현지=원화)
+        assert agg["market_value_krw_only"] == D(8000000)
+        # 전체 KRW 환산: 1,560,000 + 8,000,000
+        assert agg["market_value_krw"] == D(9560000)
+
+
+class TestFxAttributionTable:
+    def test_table_only_includes_usd(self):
+        states = replay_positions([
+            _tx(ticker="A", currency="USD", quantity=10, price=100, fx_rate=1100),
+            _tx(ticker="B", currency="KRW", quantity=10, price=1000),
+        ])
+        v_a = value_position(states[(1, "A")], 120, 1300)
+        v_b = value_position(states[(1, "B")], 1500, None)
+        rows = fx_attribution_table([v_a, v_b], states)
+        assert len(rows) == 1
+        assert rows[0]["ticker"] == "A"
+        # price + fx + cross 합 = 미실현 손익(KRW)
+        assert (
+            rows[0]["price_effect_krw"]
+            + rows[0]["fx_effect_krw"]
+            + rows[0]["cross_term_krw"]
+            == v_a.unrealized_pnl_krw
+        )
+
+    def test_skips_when_no_price(self):
+        states = replay_positions([
+            _tx(currency="USD", quantity=10, price=100, fx_rate=1100),
+        ])
+        v = value_position(states[(1, "X")], None, None)
+        assert fx_attribution_table([v], states) == []
+
+
+class TestDividends:
+    def test_dividends_accumulate(self):
+        states = replay_positions(
+            [_tx(quantity=10, price=100)],
+            dividends=[
+                _div(pay_date="2026-02-01", gross_krw=1000, net_krw=850),
+                _div(pay_date="2026-03-01", gross_krw=1500, net_krw=1275),
+            ],
+        )
+        s = states[(1, "X")]
+        assert s.cumulative_dividend_gross_krw == D(2500)
+        assert s.cumulative_dividend_net_krw == D(2125)

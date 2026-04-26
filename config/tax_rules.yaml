@@ -1,0 +1,48 @@
+# =============================================================================
+# 법인세 계산 규칙 - 세무사 확인 후 값을 채워주세요
+# =============================================================================
+# 본 파일의 모든 세율과 과세 구분은 세무사 검토를 거친 값이어야 합니다.
+# 세법 개정 가능성이 있어 매년 갱신이 필요합니다.
+# =============================================================================
+
+# 사업연도 종료 월 (12 = 12월 결산). 정관 확인 필수.
+fiscal_year_end_month: 12
+
+# 법인세 누진세율 (각 구간 상한 이하 금액에 해당 세율 적용)
+# up_to_krw: null 은 그 이상 모두를 의미
+corporate_tax_brackets:
+  - { up_to_krw: 200000000,    rate: 0.09 }   # 2억 이하
+  - { up_to_krw: 20000000000,  rate: 0.19 }   # 200억 이하
+  - { up_to_krw: 300000000000, rate: 0.21 }   # 3000억 이하
+  - { up_to_krw: null,         rate: 0.24 }   # 그 이상
+
+# 미국 배당 원천징수율 (한미 조세조약)
+us_dividend_withholding_rate: 0.15
+
+# ETF 카테고리별 과세 구분 — 세무사 확인 필수
+# capital_gain_taxable: 매매차익이 과세 대상인지
+# distribution_taxable: 분배금이 과세 대상인지
+etf_taxation:
+  domestic_equity_etf:
+    capital_gain_taxable: false      # 국내 주식형 ETF: 매매차익 비과세 (개인 기준 - 법인은 별도 확인)
+    distribution_taxable: true
+  overseas_equity_etf_kr_listed:
+    capital_gain_taxable: true       # 국내 상장 해외 ETF: 매매차익 과세
+    distribution_taxable: true
+  money_market_etf:
+    capital_gain_taxable: true
+    distribution_taxable: true
+  us_stock:
+    capital_gain_taxable: true       # 미국 주식 매매차익 (법인 기준)
+    distribution_taxable: true
+  kr_stock:
+    capital_gain_taxable: true       # 법인의 국내주식 매매차익 — 세무사 확인
+    distribution_taxable: true
+
+# 환차손익 인식 방식
+#   - "on_realization" : 매도/외화 인출 시점에 인식
+#   - "mark_to_market" : 결산일 평가 환산 (세무사 확인 필요)
+fx_gain_recognition: "on_realization"
+
+# 외국납부세액 공제 한도 계산 방식 (메모용)
+foreign_tax_credit_method: "country_limit"  # 국별한도방식 가정 — 세무사 확인
