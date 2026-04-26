@@ -199,6 +199,35 @@ hr {
     border-color: #232936 !important;
     margin: 1.25rem 0 !important;
 }
+
+/* ---- 모바일 (768px 이하) ---- */
+@media (max-width: 768px) {
+    /* 가로 오버플로우 방지 */
+    html, body, [data-testid="stAppViewContainer"] {
+        overflow-x: hidden !important;
+        max-width: 100vw !important;
+    }
+    /* 본문 패딩 축소 */
+    [data-testid="stAppViewContainer"] .main .block-container {
+        padding: 1rem 0.75rem !important;
+        max-width: 100% !important;
+    }
+    /* 메트릭 카드 폰트 축소 */
+    [data-testid="stMetricValue"] {
+        font-size: 1.25rem !important;
+    }
+    [data-testid="stMetric"] {
+        padding: 0.75rem 0.85rem !important;
+    }
+    /* 데이터프레임 가로 스크롤 허용 */
+    [data-testid="stDataFrame"] {
+        overflow-x: auto !important;
+    }
+    /* 헤더 폰트 살짝 축소 */
+    h1 { font-size: 1.5rem !important; }
+    h2 { font-size: 1.2rem !important; }
+    h3 { font-size: 1.05rem !important; }
+}
 </style>
 """
 

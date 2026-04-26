@@ -87,7 +87,7 @@ def main() -> None:
         page_title="법인 포트폴리오 대시보드",
         page_icon="📊",
         layout="wide",
-        initial_sidebar_state="expanded",
+        initial_sidebar_state="auto",
     )
     style.apply_theme()
 
