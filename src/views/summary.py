@@ -293,6 +293,20 @@ def _fy_tax_panel(s: dict) -> None:
     )
 
 
+def _refresh_button(holdings) -> None:
+    if st.button("🔄 시세 갱신", key="summary_refresh"):
+        with st.spinner("시세·환율 조회 중..."):
+            price_cache: dict = {}
+            for h in holdings:
+                key = (h["ticker"], h["currency"])
+                if key in price_cache:
+                    continue
+                price_cache[key] = prices.get_price(h["ticker"], h["currency"])
+            st.session_state["price_cache"] = price_cache
+            st.session_state["fx_cache"] = prices.get_usdkrw()
+        st.rerun()
+
+
 def render() -> None:
     s = _gather()
 
@@ -306,6 +320,8 @@ def render() -> None:
             "3️⃣ '📝 거래 입력' → '📦 초기 보유분'에서 평균단가·수량 입력"
         )
         return
+
+    _refresh_button(s["holdings"])
 
     # 큰 메트릭 카드 2개
     c1, c2 = st.columns(2)
