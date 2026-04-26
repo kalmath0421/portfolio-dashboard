@@ -24,3 +24,6 @@ data/backup/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Claude Code
+.claude/

@@ -77,6 +77,14 @@ def _initial_position_form() -> None:
         st.warning("이 계좌에 등록된 종목이 없습니다. '⚙️ 종목 관리'에서 먼저 추가하세요.")
         return
 
+    acct = next(a for a in accounts if a["account_id"] == acct_id)
+    fee_rate = float(acct["default_fee_rate"] or 0)
+    if fee_rate > 0:
+        st.caption(
+            f"💡 이 계좌 기본 매매 수수료율 **{fee_rate:.4g}%** "
+            "(초기 보유분은 수수료 입력란이 없으므로 평균단가에 반영해 입력하세요)."
+        )
+
     with st.form("initial_form", clear_on_submit=True):
         c1, c2, c3 = st.columns(3)
         with c1:
@@ -173,6 +181,17 @@ def _trade_form() -> None:
             f"이 계좌에 등록된 종목이 없습니다. '⚙️ 종목 관리'에서 먼저 추가하세요."
         )
         return
+
+    # 계좌 기본 수수료율 캡션 (작은 글씨로 인터페이스에 표시)
+    acct = next(a for a in accounts if a["account_id"] == acct_id)
+    fee_rate = float(acct["default_fee_rate"] or 0)
+    if fee_rate > 0:
+        st.caption(
+            f"💡 이 계좌 기본 매매 수수료율 **{fee_rate:.4g}%** — "
+            "추천 수수료 = `수량 × 단가 × 율 ÷ 100` "
+            "(USD 종목은 추가로 × 환율). 입력값 덮어쓰기 가능. "
+            "'🏦 계좌 관리'에서 율 변경 가능."
+        )
 
     with st.form("trade_form", clear_on_submit=True):
         c1, c2, c3 = st.columns(3)
@@ -333,7 +352,7 @@ def _dividend_form() -> None:
                 st.error(f"❌ {e}")
 
 
-def _recent_transactions_panel() -> None:
+def _recent_transactions_panel(key_prefix: str = "") -> None:
     st.subheader("📋 최근 매매 거래 (최대 50건)")
     rows = db.list_transactions(limit=50)
     if not rows:
@@ -348,9 +367,9 @@ def _recent_transactions_panel() -> None:
     st.dataframe(df, use_container_width=True, hide_index=True)
 
     with st.expander("🗑 거래 삭제 (잘못 입력했을 때)"):
-        del_id = st.number_input("삭제할 거래 ID", min_value=0, step=1, key="del_tx_id")
-        confirm = st.checkbox("정말 삭제", key="del_tx_confirm")
-        if confirm and st.button("삭제 실행", key="del_tx_btn") and del_id > 0:
+        del_id = st.number_input("삭제할 거래 ID", min_value=0, step=1, key=f"del_tx_id_{key_prefix}")
+        confirm = st.checkbox("정말 삭제", key=f"del_tx_confirm_{key_prefix}")
+        if confirm and st.button("삭제 실행", key=f"del_tx_btn_{key_prefix}") and del_id > 0:
             db.delete_transaction(int(del_id))
             st.success(f"거래 #{del_id} 삭제됨")
             st.rerun()
@@ -394,11 +413,11 @@ def render() -> None:
     with tab_init:
         _initial_position_form()
         st.divider()
-        _recent_transactions_panel()
+        _recent_transactions_panel(key_prefix="init")
     with tab_trade:
         _trade_form()
         st.divider()
-        _recent_transactions_panel()
+        _recent_transactions_panel(key_prefix="trade")
     with tab_div:
         _dividend_form()
         st.divider()
