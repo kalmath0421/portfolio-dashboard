@@ -26,6 +26,7 @@ class PositionState:
     quantity: Decimal = D(0)
     avg_cost_local: Decimal = D(0)        # 현지 통화 기준 평균 매수단가
     avg_cost_fx: Decimal = D(0)           # USD 종목의 매수 시점 가중평균 환율
+    cumulative_buy_fee_krw: Decimal = D(0)  # 보유 잔량에 귀속되는 매수 수수료 (KRW)
     realized_pnl_krw: Decimal = D(0)
     cumulative_dividend_gross_krw: Decimal = D(0)
     cumulative_dividend_net_krw: Decimal = D(0)
@@ -77,26 +78,35 @@ def replay_positions(
                     (state.avg_cost_fx * state.quantity + fx * qty) / new_qty
                 )
             state.quantity = new_qty
+            # 매수 수수료(KRW)는 잔량에 누적 — 매도 시 비례 소진
+            state.cumulative_buy_fee_krw += fee
         elif tx["side"] == "SELL":
             if qty > state.quantity:
                 # 매도 수량이 보유보다 많으면 보유분만큼만 매도된 것으로 처리
                 qty = state.quantity
+            # 매도 비율만큼 누적 매수 수수료 소진 (실현손익에 차감)
+            consumed_buy_fee = D(0)
+            if state.quantity > 0:
+                sold_ratio = qty / state.quantity
+                consumed_buy_fee = state.cumulative_buy_fee_krw * sold_ratio
+                state.cumulative_buy_fee_krw -= consumed_buy_fee
             if state.currency == "USD":
                 if state.avg_cost_fx <= 0 or fx <= 0:
                     realized = D(0)
                 else:
                     sell_krw = qty * price * fx
                     cost_krw = qty * state.avg_cost_local * state.avg_cost_fx
-                    realized = sell_krw - cost_krw - fee
+                    realized = sell_krw - cost_krw - consumed_buy_fee - fee
             else:
                 sell_krw = qty * price
                 cost_krw = qty * state.avg_cost_local
-                realized = sell_krw - cost_krw - fee
+                realized = sell_krw - cost_krw - consumed_buy_fee - fee
             state.realized_pnl_krw += realized
             state.quantity -= qty
             if state.quantity == 0:
                 state.avg_cost_local = D(0)
                 state.avg_cost_fx = D(0)
+                state.cumulative_buy_fee_krw = D(0)
         else:
             raise ValueError(f"unknown side: {tx['side']}")
 
@@ -169,8 +179,12 @@ def value_position(
         # 현지통화 매수원가는 항상 산출 가능 (현재가 없어도)
         cost_local = state.quantity * state.avg_cost_local
         if state.currency == "USD" and state.avg_cost_fx > 0:
-            cost_krw = state.quantity * state.avg_cost_local * state.avg_cost_fx
+            cost_krw = (
+                state.quantity * state.avg_cost_local * state.avg_cost_fx
+                + state.cumulative_buy_fee_krw
+            )
         elif state.currency == "KRW":
+            cost_local = cost_local + state.cumulative_buy_fee_krw
             cost_krw = cost_local
 
         if cp is not None:

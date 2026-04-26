@@ -129,6 +129,47 @@ class TestValuation:
         # 원화 수익률: 460000 / 1100000 = 41.82%
         assert v.return_pct_krw == D("41.82")
 
+    def test_buy_fee_included_in_cost_basis_krw(self):
+        states = replay_positions([
+            _tx(quantity=10, price=1000, fee=500),
+        ])
+        s = states[(1, "X")]
+        v = value_position(s, current_price_local=1000, current_fx=None)
+        # 원가 = 10*1000 + 500 = 10,500
+        assert v.cost_basis_krw == D(10500)
+        # 평가금액 = 10*1000 = 10,000 (수수료 무관)
+        assert v.market_value_krw == D(10000)
+        # 미실현 손익 = 10,000 - 10,500 = -500
+        assert v.unrealized_pnl_krw == D(-500)
+
+    def test_usd_buy_fee_added_to_krw_cost(self):
+        states = replay_positions([
+            _tx(currency="USD", quantity=10, price=100, fx_rate=1100, fee=3000),
+        ])
+        s = states[(1, "X")]
+        v = value_position(s, current_price_local=100, current_fx=1100)
+        # USD 원가는 수수료 미포함 (수수료가 KRW이므로)
+        assert v.cost_basis_local == D(1000)
+        # KRW 원가 = 10*100*1100 + 3000 = 1,103,000
+        assert v.cost_basis_krw == D(1103000)
+        assert v.market_value_krw == D(1100000)
+        assert v.unrealized_pnl_krw == D(-3000)
+
+    def test_partial_sell_consumes_buy_fee_proportionally(self):
+        states = replay_positions([
+            _tx(trade_date="2026-01-01", quantity=10, price=1000, fee=500),
+            _tx(trade_date="2026-01-02", side="SELL", quantity=4, price=1000, fee=0),
+        ])
+        s = states[(1, "X")]
+        # 매도 시점: 4/10 = 40% 매수수수료 소진 = 200원 차감
+        # 실현손익 = (4*1000 - 4*1000) - 200 = -200
+        assert s.realized_pnl_krw == D(-200)
+        # 잔량 6주에 귀속되는 매수수수료 = 300원 남음
+        assert s.cumulative_buy_fee_krw == D(300)
+        v = value_position(s, current_price_local=1000, current_fx=None)
+        # 잔량 원가 = 6*1000 + 300 = 6,300
+        assert v.cost_basis_krw == D(6300)
+
     def test_usd_no_price_yet_keeps_cost_basis(self):
         """현재가 없어도 매수원가는 산출돼야 한다."""
         states = replay_positions([
