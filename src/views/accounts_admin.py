@@ -6,7 +6,7 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 
-from src import db
+from src import db, profile_config
 
 
 KIND_OPTIONS = list(db.KINDS.keys())
@@ -38,12 +38,16 @@ def _add_form(expanded_default: bool = False) -> None:
                     help='예: "IBK WINGS", "농협 나무", "한국투자증권", "키움증권"',
                 )
             with c2:
-                kind = st.selectbox(
-                    "계좌 종류 *",
-                    options=KIND_OPTIONS,
-                    format_func=lambda x: db.KINDS[x],
-                    help="법인 유보금 계좌인지 개인 계좌인지 선택. 세금 계산에 영향.",
-                )
+                if profile_config.is_personal():
+                    # 개인 모드 — 종류 선택 숨기고 자동으로 개인 고정
+                    kind = db.KIND_PERSONAL
+                else:
+                    kind = st.selectbox(
+                        "계좌 종류 *",
+                        options=KIND_OPTIONS,
+                        format_func=lambda x: db.KINDS[x],
+                        help="법인 유보금 계좌인지 개인 계좌인지 선택. 세금 계산에 영향.",
+                    )
                 default_fee_rate = st.number_input(
                     "기본 매매 수수료율 (%)",
                     min_value=0.0, max_value=5.0, step=0.001,
@@ -52,13 +56,21 @@ def _add_form(expanded_default: bool = False) -> None:
                 )
                 note = st.text_input("메모 (선택)")
 
+            if profile_config.is_personal():
+                seed_help = (
+                    "개인 계좌 기본 종목 일괄 등록: "
+                    "NVDA, MSFT, TSLA, AMZN, GOOGL, XLU, QQQJ, SPYM (미국) + "
+                    "삼성전자, 우리금융지주, SK스퀘어 (국내)"
+                )
+            else:
+                seed_help = (
+                    "법인 선택 시: TIGER 코리아TOP10·미국배당다우존스·미국나스닥100 커버드콜 등 5종 (CD금리액티브는 별도 입력)\n"
+                    "개인 선택 시: NVDA, MSFT, TSLA, AMZN, GOOGL, XLU, QQQJ, SPYM (미국) + 삼성전자, 우리금융지주, SK스퀘어 (국내)"
+                )
             seed_default = st.checkbox(
                 "💡 명세서 기본 종목을 이 계좌에 일괄 등록",
                 value=False,
-                help=(
-                    "법인 선택 시: TIGER 코리아TOP10·미국배당다우존스·미국나스닥100 커버드콜 등 5종 (CD금리액티브는 별도 입력)\n"
-                    "개인 선택 시: NVDA, MSFT, TSLA, AMZN, GOOGL, XLU, QQQJ, SPYM (미국) + 삼성전자, 우리금융지주, SK스퀘어 (국내)"
-                ),
+                help=seed_help,
             )
 
             submitted = st.form_submit_button("저장", type="primary")
@@ -106,13 +118,17 @@ def _edit_panel() -> None:
             new_broker = st.text_input(
                 "증권사", value=row["broker"], key=f"edit_acct_broker_{selected_id}"
             )
-            new_kind = st.selectbox(
-                "계좌 종류",
-                options=KIND_OPTIONS,
-                index=KIND_OPTIONS.index(row["kind"]),
-                format_func=lambda x: db.KINDS[x],
-                key=f"edit_acct_kind_{selected_id}",
-            )
+            if profile_config.is_personal():
+                # 개인 모드 — 기존 값 유지 (편집 UI에서 노출만 안 함)
+                new_kind = row["kind"]
+            else:
+                new_kind = st.selectbox(
+                    "계좌 종류",
+                    options=KIND_OPTIONS,
+                    index=KIND_OPTIONS.index(row["kind"]),
+                    format_func=lambda x: db.KINDS[x],
+                    key=f"edit_acct_kind_{selected_id}",
+                )
             new_note = st.text_input(
                 "메모", value=row["note"] or "", key=f"edit_acct_note_{selected_id}"
             )
@@ -177,10 +193,13 @@ def _edit_panel() -> None:
 
 def render() -> None:
     st.header("🏦 계좌 관리")
-    st.caption(
-        "여러 증권사·계좌를 관리합니다. "
-        "법인/개인 계좌를 각각 여러 개 등록 가능."
-    )
+    if profile_config.is_personal():
+        st.caption("여러 증권사·계좌를 관리합니다. 개인 계좌만 운영.")
+    else:
+        st.caption(
+            "여러 증권사·계좌를 관리합니다. "
+            "법인/개인 계좌를 각각 여러 개 등록 가능."
+        )
 
     has_any = db.account_count() > 0
 
@@ -190,10 +209,15 @@ def render() -> None:
     if df.empty and has_any:
         st.info("표시할 활성 계좌가 없습니다. 위 토글로 비활성 계좌도 볼 수 있습니다.")
     elif df.empty:
-        st.warning(
-            "👋 아직 등록된 계좌가 없습니다. 아래 폼에서 첫 계좌를 추가하세요. "
-            "법인/개인을 직접 선택하고 계좌명도 자유롭게 정할 수 있습니다."
-        )
+        if profile_config.is_personal():
+            st.warning(
+                "👋 아직 등록된 계좌가 없습니다. 아래 폼에서 첫 계좌를 추가하세요."
+            )
+        else:
+            st.warning(
+                "👋 아직 등록된 계좌가 없습니다. 아래 폼에서 첫 계좌를 추가하세요. "
+                "법인/개인을 직접 선택하고 계좌명도 자유롭게 정할 수 있습니다."
+            )
     else:
         st.dataframe(
             df,

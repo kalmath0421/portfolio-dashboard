@@ -1,0 +1,33 @@
+### 두 번째 인스턴스 (개인 모드, "아란의 포트폴리오") 전용 compose 파일.
+###
+### 사용법 (NAS에서):
+###   1. 같은 코드 트리를 /volume1/docker/portfolio-dashboard-2 로 복사
+###   2. 이 파일 이름을 docker-compose.yml 로 두거나 -f 옵션으로 지정
+###   3. sudo docker compose -f docker-compose.aran.yml up -d --build
+###
+### 또는 한 폴더에서 두 인스턴스를 같이 운영하려면:
+###   sudo docker compose -f docker-compose.yml -f docker-compose.aran.yml up -d --build
+### (단, ports/data 경로 충돌 주의)
+services:
+  portfolio:
+    build: .
+    image: portfolio-dashboard:latest
+    container_name: portfolio-dashboard-aran
+    restart: unless-stopped
+    ports:
+      - "4444:8501"
+    volumes:
+      # 데이터는 별도 — 첫 인스턴스와 섞이지 않도록 분리된 호스트 폴더 사용
+      - ./data:/app/data
+      - ./config:/app/config
+    environment:
+      - TZ=Asia/Seoul
+      - DASHBOARD_PROFILE=personal
+      - DASHBOARD_TITLE=아란의 포트폴리오
+      - DASHBOARD_SUBTITLE=개인 투자 모니터링
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health').read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s

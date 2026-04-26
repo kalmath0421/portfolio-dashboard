@@ -13,6 +13,12 @@ services:
       - ./config:/app/config
     environment:
       - TZ=Asia/Seoul
+      # 프로파일 모드: corp (기본) | personal
+      # personal 모드는 docker-compose 오버라이드 또는 별도 인스턴스에서 지정.
+      - DASHBOARD_PROFILE=${DASHBOARD_PROFILE:-corp}
+      # 빈 문자열이면 모드별 기본 타이틀 사용 (profile_config.get_page_title 참고)
+      - DASHBOARD_TITLE=${DASHBOARD_TITLE:-}
+      - DASHBOARD_SUBTITLE=${DASHBOARD_SUBTITLE:-}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health').read()"]
       interval: 30s
