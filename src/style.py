@@ -23,6 +23,33 @@ h1, h2, h3, h4, h5, h6, p, span, div, label {
 /* 이모지를 컬러로 렌더 (CSS4) */
 * { font-variant-emoji: emoji; }
 
+/* ---- Material Symbols 아이콘 ---- */
+/* 글로벌 font-family !important 룰이 아이콘 폰트를 덮어버려 ligature 텍스트
+   (예: keyboard_double_arrow_right) 가 그대로 노출되는 걸 방지. */
+[data-testid="stIconMaterial"],
+span.material-symbols-rounded,
+span.material-symbols-outlined,
+span.material-icons,
+.material-symbols-rounded,
+.material-symbols-outlined,
+.material-icons {
+    font-family: 'Material Symbols Rounded',
+                 'Material Symbols Outlined',
+                 'Material Icons' !important;
+    font-weight: normal !important;
+    font-style: normal !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+    word-wrap: normal !important;
+    direction: ltr !important;
+    -webkit-font-feature-settings: 'liga' !important;
+    font-feature-settings: 'liga' !important;
+    -webkit-font-smoothing: antialiased;
+    font-variant-emoji: text !important;
+}
+
 /* ---- 본문 배경 톤 다듬기 ---- */
 [data-testid="stAppViewContainer"] {
     background: radial-gradient(ellipse at top, #131722 0%, #0F1218 60%);

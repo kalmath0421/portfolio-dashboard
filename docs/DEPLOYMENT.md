@@ -38,8 +38,8 @@
 
 ## 미완료
 
-### 1) Material Symbols 아이콘
-모바일에서 사이드바 토글 버튼이 `keyboard_double_arrow_right` ligature 텍스트로 노출됨. `style.py`에 Google Fonts import 추가했지만 효과 미확인 (캐시 의심). 시크릿 탭/캐시 비우고 재확인. 안 되면 `::before content`로 직접 매핑하거나 SVG 교체.
+### ~~1) Material Symbols 아이콘~~ ✅ 해결 (2026-04-26)
+모바일에서 사이드바 토글 버튼이 `keyboard_double_arrow_right` ligature 텍스트로 노출되던 문제. 원인은 `style.py`의 글로벌 `font-family !important` 룰이 아이콘 element의 Material Symbols 폰트까지 덮어버린 것. 해결: 아이콘 element selector(`[data-testid="stIconMaterial"]`, `.material-symbols-*` 등)에 명시적으로 `font-family: 'Material Symbols Rounded'` + `font-feature-settings: 'liga'` 강제 지정.
 
 ### 2) 두 번째 사용자 인스턴스
 같은 NAS에 컨테이너 하나 더 띄워서 두 번째 사람용 분리 운영.
