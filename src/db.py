@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS accounts (
     kind TEXT NOT NULL CHECK (kind IN ('corp', 'personal')),
     is_active INTEGER NOT NULL DEFAULT 1,
     note TEXT,
+    default_fee_rate REAL NOT NULL DEFAULT 0,
     added_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -206,6 +207,18 @@ def transaction() -> Iterator[sqlite3.Connection]:
 def init_schema() -> None:
     with transaction() as conn:
         conn.executescript(SCHEMA_SQL)
+        _migrate_add_column_if_missing(
+            conn, "accounts", "default_fee_rate",
+            "REAL NOT NULL DEFAULT 0",
+        )
+
+
+def _migrate_add_column_if_missing(
+    conn: sqlite3.Connection, table: str, column: str, decl: str
+) -> None:
+    cols = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+    if column not in cols:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
 
 
 def has_money_market_etf() -> bool:
@@ -266,15 +279,24 @@ def get_account(account_id: int) -> sqlite3.Row | None:
         ).fetchone()
 
 
-def add_account(name: str, broker: str, kind: str, note: str | None = None) -> int:
+def add_account(
+    name: str,
+    broker: str,
+    kind: str,
+    note: str | None = None,
+    default_fee_rate: float = 0.0,
+) -> int:
     if kind not in KINDS:
         raise ValueError(f"invalid kind: {kind}")
     if not name.strip() or not broker.strip():
         raise ValueError("name and broker are required")
+    if default_fee_rate < 0 or default_fee_rate > 5:
+        raise ValueError("default_fee_rate은 0~5(%) 범위여야 합니다")
     with transaction() as conn:
         cur = conn.execute(
-            "INSERT INTO accounts (name, broker, kind, note) VALUES (?, ?, ?, ?)",
-            (name.strip(), broker.strip(), kind, note),
+            "INSERT INTO accounts (name, broker, kind, note, default_fee_rate)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (name.strip(), broker.strip(), kind, note, float(default_fee_rate)),
         )
         return cur.lastrowid
 
@@ -285,6 +307,7 @@ def update_account(
     broker: str | None = None,
     kind: str | None = None,
     note: str | None = None,
+    default_fee_rate: float | None = None,
 ) -> None:
     sets, params = [], []
     if name is not None:
@@ -301,6 +324,11 @@ def update_account(
     if note is not None:
         sets.append("note = ?")
         params.append(note)
+    if default_fee_rate is not None:
+        if default_fee_rate < 0 or default_fee_rate > 5:
+            raise ValueError("default_fee_rate은 0~5(%) 범위여야 합니다")
+        sets.append("default_fee_rate = ?")
+        params.append(float(default_fee_rate))
     if not sets:
         return
     params.append(account_id)

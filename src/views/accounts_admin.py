@@ -44,6 +44,12 @@ def _add_form(expanded_default: bool = False) -> None:
                     format_func=lambda x: db.KINDS[x],
                     help="법인 유보금 계좌인지 개인 계좌인지 선택. 세금 계산에 영향.",
                 )
+                default_fee_rate = st.number_input(
+                    "기본 매매 수수료율 (%)",
+                    min_value=0.0, max_value=5.0, step=0.001,
+                    value=0.0, format="%.4f",
+                    help="거래 입력 시 추천값으로 자동 채움. 예: 키움 0.015, IBK WINGS 0.1, NH나무 0.012",
+                )
                 note = st.text_input("메모 (선택)")
 
             seed_default = st.checkbox(
@@ -58,7 +64,11 @@ def _add_form(expanded_default: bool = False) -> None:
             submitted = st.form_submit_button("저장", type="primary")
             if submitted:
                 try:
-                    new_id = db.add_account(name=name, broker=broker, kind=kind, note=note or None)
+                    new_id = db.add_account(
+                        name=name, broker=broker, kind=kind,
+                        note=note or None,
+                        default_fee_rate=float(default_fee_rate),
+                    )
                     msg = f"✅ 계좌 추가 완료: {name}"
                     if seed_default:
                         added = db.add_default_holdings_to_account(new_id)
@@ -106,6 +116,14 @@ def _edit_panel() -> None:
             new_note = st.text_input(
                 "메모", value=row["note"] or "", key=f"edit_acct_note_{selected_id}"
             )
+            new_fee_rate = st.number_input(
+                "기본 매매 수수료율 (%)",
+                min_value=0.0, max_value=5.0, step=0.001,
+                value=float(row["default_fee_rate"] or 0),
+                format="%.4f",
+                key=f"edit_acct_fee_{selected_id}",
+                help="거래 입력 시 추천값으로 자동 채움",
+            )
 
         with c2:
             currently_active = bool(row["is_active"])
@@ -124,6 +142,7 @@ def _edit_panel() -> None:
                             broker=new_broker,
                             kind=new_kind,
                             note=new_note,
+                            default_fee_rate=float(new_fee_rate),
                         )
                         st.success("저장됨")
                         st.rerun()
