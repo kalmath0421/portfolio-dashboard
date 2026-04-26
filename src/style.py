@@ -7,12 +7,20 @@ import streamlit as st
 _CUSTOM_CSS = """
 <style>
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap');
 
-html, body, [class*="css"], button, input, textarea, select {
+html, body, [class*="css"], button, input, textarea, select,
+[data-testid="stSidebar"] *, [data-testid="stMetric"] *,
+h1, h2, h3, h4, h5, h6, p, span, div, label {
     font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI',
-                 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important;
+                 'Apple SD Gothic Neo', 'Noto Sans KR',
+                 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji',
+                 'Segoe UI Symbol', sans-serif !important;
     letter-spacing: -0.01em;
 }
+
+/* 이모지를 컬러로 렌더 (CSS4) */
+* { font-variant-emoji: emoji; }
 
 /* ---- 본문 배경 톤 다듬기 ---- */
 [data-testid="stAppViewContainer"] {
