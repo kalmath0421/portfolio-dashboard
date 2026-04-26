@@ -1,0 +1,21 @@
+services:
+  portfolio:
+    build: .
+    image: portfolio-dashboard:latest
+    container_name: portfolio-dashboard
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    volumes:
+      # 데이터(SQLite)는 호스트에 보존 — 컨테이너 재빌드해도 유지
+      - ./data:/app/data
+      # 세금 규칙은 본인이 수정할 수 있게 별도 마운트
+      - ./config:/app/config
+    environment:
+      - TZ=Asia/Seoul
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health').read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
