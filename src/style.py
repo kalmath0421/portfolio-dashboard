@@ -6,14 +6,16 @@ import streamlit as st
 
 _CUSTOM_CSS = """
 <style>
-/* Google Fonts 에서 Inter (영문/숫자) + Noto Sans KR (한글) 명시 로드.
-   시스템 폰트에 의존하면 환경마다 메트릭이 달라 숫자 흩어짐이 재발할 수 있어
-   외부 폰트로 환경 무관하게 고정. */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&family=Noto+Color+Emoji&display=swap');
+/* IBM Plex Sans + IBM Plex Sans KR + IBM Plex Mono — 같은 디자인 팀이 만든
+   세 폰트로 한글-영문-숫자 메트릭 일관. 숫자가 들어가는 영역에는 Mono 를
+   적용해 모든 글자 advance 가 동일 — 한글 사이에서 흩어진 것처럼 보일 여지
+   원천 차단. */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Color+Emoji&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined&family=Material+Symbols+Rounded&display=swap');
 
 html, body, *, *::before, *::after {
-    font-family: 'Inter', 'Noto Sans KR', -apple-system, BlinkMacSystemFont,
+    font-family: 'IBM Plex Sans', 'IBM Plex Sans KR',
+                 -apple-system, BlinkMacSystemFont,
                  'Apple SD Gothic Neo', 'Segoe UI', system-ui, sans-serif !important;
     letter-spacing: 0 !important;
     word-spacing: 0 !important;
@@ -23,33 +25,31 @@ html, body, *, *::before, *::after {
     text-rendering: optimizeLegibility !important;
 }
 
-/* DevTools 진단 결과: Streamlit 의 emotion CSS (`st-emotion-cache-XXX` 클래스)
-   가 letter-spacing 을 normal 로 강제 — 글로벌 `*` selector 보다 specificity
-   가 높아 위쪽 룰이 무력화됨. 같은 emotion 클래스를 타겟해 음수 자간 강제. */
+/* Streamlit emotion 클래스 — specificity 보강. */
 [class*="st-emotion-cache"],
 [class*="st-emotion-cache"] * {
-    letter-spacing: -0.03em !important;
+    letter-spacing: 0 !important;
     word-spacing: 0 !important;
     font-variant-numeric: proportional-nums lining-nums !important;
     font-feature-settings: 'pnum' 1, 'lnum' 1, 'kern' 1, 'tnum' 0 !important;
 }
 
-/* st.metric 의 값은 더 specific 한 testid selector 로 한 번 더 강제 — 일부
-   Streamlit 빌드에서 글로벌 룰이 emotion 인라인 스타일에 밀리는 케이스 회피. */
+/* 메트릭 값 / 표 / 입력란 — Mono 로 강제. 모든 글자 너비 동일이라 흩어진
+   외관 불가능. 시각적으로 typewriter 느낌이지만 정확한 정렬이 우선. */
 [data-testid="stMetricValue"],
 [data-testid="stMetricValue"] *,
 [data-testid="stMetricDelta"],
 [data-testid="stMetricDelta"] *,
-[data-testid="stMarkdownContainer"] *,
-[data-testid="stHeading"] *,
-[data-testid="stDataFrame"] *,
-[data-testid="stTable"] *,
-input, td, th {
-    font-family: 'Inter', 'Noto Sans KR', sans-serif !important;
+[data-testid="stDataFrame"] td,
+[data-testid="stDataFrame"] th,
+[data-testid="stTable"] td,
+[data-testid="stTable"] th,
+[data-testid="stNumberInput"] input,
+[data-testid="stTextInput"] input,
+[data-testid="stDateInput"] input {
+    font-family: 'IBM Plex Mono', 'IBM Plex Sans KR', monospace !important;
+    font-variant-numeric: tabular-nums lining-nums !important;
     letter-spacing: 0 !important;
-    word-spacing: 0 !important;
-    font-variant-numeric: proportional-nums lining-nums !important;
-    font-feature-settings: 'pnum' 1, 'lnum' 1, 'kern' 1, 'tnum' 0 !important;
 }
 
 /* 이모지를 컬러로 렌더 (CSS4) */
