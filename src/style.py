@@ -6,50 +6,18 @@ import streamlit as st
 
 _CUSTOM_CSS = """
 <style>
-/* IBM Plex Sans + IBM Plex Sans KR + IBM Plex Mono — 같은 디자인 팀이 만든
-   세 폰트로 한글-영문-숫자 메트릭 일관. 숫자가 들어가는 영역에는 Mono 를
-   적용해 모든 글자 advance 가 동일 — 한글 사이에서 흩어진 것처럼 보일 여지
-   원천 차단. */
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Noto+Color+Emoji&display=swap');
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined&family=Material+Symbols+Rounded&display=swap');
 
-html, body, *, *::before, *::after {
-    font-family: 'IBM Plex Sans', 'IBM Plex Sans KR',
-                 -apple-system, BlinkMacSystemFont,
-                 'Apple SD Gothic Neo', 'Segoe UI', system-ui, sans-serif !important;
-    letter-spacing: 0 !important;
-    word-spacing: 0 !important;
-    font-variant-numeric: proportional-nums lining-nums !important;
-    font-feature-settings: 'pnum' 1, 'lnum' 1, 'kern' 1, 'tnum' 0 !important;
-    -webkit-font-smoothing: antialiased !important;
-    text-rendering: optimizeLegibility !important;
-}
-
-/* Streamlit emotion 클래스 — specificity 보강. */
-[class*="st-emotion-cache"],
-[class*="st-emotion-cache"] * {
-    letter-spacing: 0 !important;
-    word-spacing: 0 !important;
-    font-variant-numeric: proportional-nums lining-nums !important;
-    font-feature-settings: 'pnum' 1, 'lnum' 1, 'kern' 1, 'tnum' 0 !important;
-}
-
-/* 메트릭 값 / 표 / 입력란 — Mono 로 강제. 모든 글자 너비 동일이라 흩어진
-   외관 불가능. 시각적으로 typewriter 느낌이지만 정확한 정렬이 우선. */
-[data-testid="stMetricValue"],
-[data-testid="stMetricValue"] *,
-[data-testid="stMetricDelta"],
-[data-testid="stMetricDelta"] *,
-[data-testid="stDataFrame"] td,
-[data-testid="stDataFrame"] th,
-[data-testid="stTable"] td,
-[data-testid="stTable"] th,
-[data-testid="stNumberInput"] input,
-[data-testid="stTextInput"] input,
-[data-testid="stDateInput"] input {
-    font-family: 'IBM Plex Mono', 'IBM Plex Sans KR', monospace !important;
-    font-variant-numeric: tabular-nums lining-nums !important;
-    letter-spacing: 0 !important;
+html, body, [class*="css"], button, input, textarea, select,
+[data-testid="stSidebar"] *, [data-testid="stMetric"] *,
+h1, h2, h3, h4, h5, h6, p, span, div, label {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+                 'Apple SD Gothic Neo', 'Noto Sans KR',
+                 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji',
+                 'Segoe UI Symbol', sans-serif !important;
+    letter-spacing: -0.01em;
 }
 
 /* 이모지를 컬러로 렌더 (CSS4) */
