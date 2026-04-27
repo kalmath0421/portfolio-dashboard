@@ -6,8 +6,11 @@ import streamlit as st
 
 _FONT_LINKS = """
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 """
 
 
@@ -20,6 +23,7 @@ html, body, [class*="css"], button, input, textarea, select,
 [data-testid="stSidebar"] *, [data-testid="stMetric"] *,
 h1, h2, h3, h4, h5, h6, p, span, div, label {
     font-family: 'Pretendard Variable', 'Pretendard',
+                 'Inter',
                  -apple-system, BlinkMacSystemFont, 'Segoe UI',
                  'Apple SD Gothic Neo', 'Noto Sans KR',
                  'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji',
