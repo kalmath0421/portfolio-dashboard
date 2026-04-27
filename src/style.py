@@ -31,7 +31,11 @@ h1, h2, h3, h4, h5, h6, p, span, div, label {
    으로 분배 차단. */
 [data-testid="stMetricValue"],
 [data-testid="stMetricValue"] [data-testid="stMarkdownContainer"],
-[data-testid="stMetricValue"] p {
+[data-testid="stMetricValue"] p,
+[data-testid="stMetricDelta"],
+[data-testid="stMetricDelta"] [data-testid="stMarkdownContainer"],
+[data-testid="stMetricDelta"] p,
+[data-testid="stMetricDelta"] div {
     width: auto !important;
     min-width: max-content !important;
     max-width: none !important;
@@ -39,7 +43,20 @@ h1, h2, h3, h4, h5, h6, p, span, div, label {
     overflow: visible !important;
 }
 
-[data-testid="stMetricValue"] p {
+[data-testid="stMetricValue"] p,
+[data-testid="stMetricDelta"] p {
+    font-variant-numeric: normal !important;
+    font-feature-settings: normal !important;
+}
+
+/* caption 텍스트도 같은 분배 효과로 흩어지므로 text-align 명시 + word-spacing
+   reset. caption 은 줄바꿈이 가능해야 자연스러우니 white-space 는 normal 유지. */
+[data-testid="stCaptionContainer"],
+[data-testid="stCaptionContainer"] *,
+small {
+    text-align: left !important;
+    word-spacing: normal !important;
+    letter-spacing: normal !important;
     font-variant-numeric: normal !important;
     font-feature-settings: normal !important;
 }
