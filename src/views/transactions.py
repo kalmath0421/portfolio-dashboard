@@ -83,7 +83,7 @@ def _combined_new_holding_form() -> None:
     with st.form("combined_new_holding_form", clear_on_submit=True):
         # --- 종목 마스터 정보 ---
         st.markdown("**1. 종목 정보**")
-        c1, c2, c3 = st.columns(3)
+        c1, c2 = st.columns(2)
         with c1:
             ticker = st.text_input(
                 "티커 *",
@@ -92,18 +92,19 @@ def _combined_new_holding_form() -> None:
             )
         with c2:
             name = st.text_input("종목명 *", key="combined_name")
-        with c3:
-            currency = st.selectbox(
-                "통화 *",
-                options=["KRW", "USD"],
-                key="combined_currency",
-            )
         category = st.selectbox(
             "카테고리 *",
             options=list(db.CATEGORIES.keys()),
             format_func=lambda x: db.CATEGORIES[x],
             key="combined_category",
+            help=(
+                "카테고리에 따라 통화는 자동 결정됩니다 — "
+                "미국주식=USD, 그 외(국내·국내상장 ETF·MMF성)=KRW"
+            ),
         )
+        # 통화는 카테고리에서 자동 도출
+        currency = db.default_currency_for_category(category)
+        st.caption(f"💱 자동 결정된 통화: **{currency}**")
 
         st.divider()
 

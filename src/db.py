@@ -39,6 +39,24 @@ CATEGORIES = {
     "kr_stock": "국내주식",
 }
 
+# 카테고리별 기본 통화 — 카테고리만 선택하면 통화는 자동 결정.
+# 한국에 미국주식이 USD로 상장되거나 미국에 한국주식이 KRW로 상장되는
+# 케이스는 사실상 없어서 카테고리가 사실상 통화를 결정함.
+CATEGORY_DEFAULT_CURRENCY = {
+    "domestic_equity_etf": "KRW",
+    "overseas_equity_etf_kr_listed": "KRW",  # 국내 상장이므로 원화 거래
+    "money_market_etf": "KRW",
+    "us_stock": "USD",
+    "kr_stock": "KRW",
+}
+
+
+def default_currency_for_category(category: str) -> str:
+    """카테고리에서 기본 통화 도출. 잘못된 카테고리는 ValueError."""
+    if category not in CATEGORY_DEFAULT_CURRENCY:
+        raise ValueError(f"invalid category: {category}")
+    return CATEGORY_DEFAULT_CURRENCY[category]
+
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS accounts (
     account_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -425,12 +443,19 @@ def add_holding(
     account_id: int,
     name: str,
     category: str,
-    currency: str,
+    currency: str | None = None,
     note: str | None = None,
 ) -> None:
+    """종목 마스터 등록.
+
+    currency 가 None 이면 카테고리에서 자동 도출 (예: us_stock → USD).
+    명시적으로 주면 그 값을 사용 (단 KRW/USD 만 허용).
+    """
     ticker = _normalize_ticker(ticker)
     if category not in CATEGORIES:
         raise ValueError(f"invalid category: {category}")
+    if currency is None:
+        currency = default_currency_for_category(category)
     if currency not in ("KRW", "USD"):
         raise ValueError(f"invalid currency: {currency}")
     if not ticker or not name.strip():
@@ -662,14 +687,16 @@ def add_holding_with_initial_position(
     ticker: str,
     name: str,
     category: str,
-    currency: str,
     quantity: float,
     avg_price: float,
+    currency: str | None = None,
     avg_fx_rate: float | None = None,
     base_date: str | None = None,
     note: str | None = None,
 ) -> tuple[bool, int]:
     """종목 마스터 + 초기 보유분(BUY 거래) 한 번에 등록.
+
+    currency 가 None 이면 카테고리에서 자동 도출.
 
     이미 같은 (ticker, account_id) 종목이 있으면:
     - 통화가 일치하면: 종목은 그대로 두고 거래만 추가 (UPSERT 의도)
@@ -680,6 +707,12 @@ def add_holding_with_initial_position(
         False 면 이미 있는 종목에 거래만 추가.
     """
     ticker = _normalize_ticker(ticker)
+    if category not in CATEGORIES:
+        raise ValueError(f"invalid category: {category}")
+    # 카테고리에서 통화 자동 도출 (명시값이 있으면 우선)
+    if currency is None:
+        currency = default_currency_for_category(category)
+
     existing = get_holding(ticker, account_id)
     holding_created = False
     if existing is None:
@@ -698,7 +731,6 @@ def add_holding_with_initial_position(
                 f"이미 등록된 종목 {ticker} 의 통화는 {existing['currency']} 입니다. "
                 f"입력값 {currency} 와 다릅니다."
             )
-        # 종목명이 비어있는데 새로 입력값이 들어오면 이름 보정 (선택)
 
     tx_id = add_initial_position(
         account_id=account_id,

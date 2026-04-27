@@ -104,8 +104,19 @@ def _add_form(accounts: list[sqlite3.Row]) -> None:
                     "카테고리",
                     options=CATEGORY_OPTIONS,
                     format_func=lambda x: db.CATEGORIES[x],
+                    help=(
+                        "카테고리에 따라 통화는 자동 결정됩니다 — "
+                        "미국주식=USD, 그 외(국내·국내상장 ETF·MMF성)=KRW"
+                    ),
                 )
-                currency = st.selectbox("통화", options=CURRENCY_OPTIONS)
+                # 통화는 카테고리에서 자동 도출. UI에 표시만 (read-only).
+                derived_currency = db.default_currency_for_category(category)
+                st.text_input(
+                    "통화 (자동 결정)",
+                    value=derived_currency,
+                    disabled=True,
+                    help="카테고리에 따라 자동 결정됨",
+                )
                 note = st.text_input("메모 (선택)")
 
             submitted = st.form_submit_button("저장", type="primary")
@@ -116,10 +127,10 @@ def _add_form(accounts: list[sqlite3.Row]) -> None:
                         account_id=acct_id,
                         name=name,
                         category=category,
-                        currency=currency,
+                        # currency 생략 → 카테고리에서 자동 도출
                         note=note or None,
                     )
-                    st.success(f"✅ {name} ({ticker}) 추가 완료")
+                    st.success(f"✅ {name} ({ticker}) 추가 완료 ({derived_currency})")
                     st.rerun()
                 except sqlite3.IntegrityError:
                     st.error(f"❌ 같은 계좌에 이미 등록된 티커: {ticker}")

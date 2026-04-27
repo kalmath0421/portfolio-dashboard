@@ -521,3 +521,62 @@ class TestAddHoldingWithInitialPosition:
         )
         assert created is True
         assert db.get_holding("AMZN", corp_account) is not None
+
+
+class TestCategoryDefaultCurrency:
+    """카테고리에서 통화 자동 도출."""
+
+    def test_us_stock_defaults_to_usd(self):
+        assert db.default_currency_for_category("us_stock") == "USD"
+
+    def test_kr_stock_defaults_to_krw(self):
+        assert db.default_currency_for_category("kr_stock") == "KRW"
+
+    def test_domestic_etf_defaults_to_krw(self):
+        assert db.default_currency_for_category("domestic_equity_etf") == "KRW"
+
+    def test_overseas_kr_listed_etf_defaults_to_krw(self):
+        # TIGER 미국나스닥100 같은 국내 상장 해외 ETF — 거래 통화는 KRW
+        assert db.default_currency_for_category("overseas_equity_etf_kr_listed") == "KRW"
+
+    def test_money_market_etf_defaults_to_krw(self):
+        assert db.default_currency_for_category("money_market_etf") == "KRW"
+
+    def test_invalid_category_rejected(self):
+        with pytest.raises(ValueError, match="invalid category"):
+            db.default_currency_for_category("crypto")
+
+
+class TestAutoCurrencyOnInsert:
+    """add_holding / add_holding_with_initial_position 가 카테고리에서 통화 자동 도출."""
+
+    def test_add_holding_without_currency_uses_category(self, corp_account):
+        db.add_holding(
+            ticker="NVDA", account_id=corp_account, name="NVIDIA",
+            category="us_stock",
+            # currency 인자 생략 — 카테고리에서 자동 도출
+        )
+        h = db.get_holding("NVDA", corp_account)
+        assert h["currency"] == "USD"
+
+    def test_add_holding_explicit_currency_still_works(self, corp_account):
+        # 명시값이 있으면 그대로 사용 (legacy compatibility)
+        db.add_holding(
+            ticker="005930", account_id=corp_account, name="삼성전자",
+            category="kr_stock", currency="KRW",
+        )
+        h = db.get_holding("005930", corp_account)
+        assert h["currency"] == "KRW"
+
+    def test_combined_form_without_currency(self, corp_account):
+        created, tx_id = db.add_holding_with_initial_position(
+            account_id=corp_account,
+            ticker="MSFT", name="Microsoft",
+            category="us_stock",
+            quantity=10, avg_price=400.0, avg_fx_rate=1400.0,
+            base_date="2026-04-27",
+            # currency 생략 — us_stock 이라 USD 자동
+        )
+        assert created is True
+        h = db.get_holding("MSFT", corp_account)
+        assert h["currency"] == "USD"
