@@ -19,6 +19,8 @@ services:
       # 빈 문자열이면 모드별 기본 타이틀 사용 (profile_config.get_page_title 참고)
       - DASHBOARD_TITLE=${DASHBOARD_TITLE:-}
       - DASHBOARD_SUBTITLE=${DASHBOARD_SUBTITLE:-}
+      # 비밀번호 게이트 — 빈 값이면 게이트 비활성. 운영 시 반드시 설정 권장.
+      - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD:-}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health').read()"]
       interval: 30s

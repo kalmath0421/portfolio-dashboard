@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from src import db, profile_config, style
+from src import auth, db, profile_config, style
 from src.views import (
     accounts_admin,
     charts,
@@ -106,6 +106,10 @@ def main() -> None:
         initial_sidebar_state="auto",
     )
     style.apply_theme()
+
+    # 비밀번호 게이트 — 환경변수 DASHBOARD_PASSWORD 가 설정돼 있으면 인증 후 진행.
+    # 미설정 시엔 통과 (개발/공개 운영용).
+    auth.require_auth()
 
     _bootstrap()
 
