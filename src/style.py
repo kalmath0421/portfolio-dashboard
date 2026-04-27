@@ -30,6 +30,54 @@ _BOOT_JS = """
 <script>
     document.documentElement.lang = 'en';
     document.documentElement.setAttribute('translate', 'no');
+
+    // 마지막 보루: CSS specificity 게임으로 못 이기는 케이스를 위해 inline
+    // style 로 직접 박는다. Streamlit emotion CSS 가 어떻게 강제하든 inline
+    // !important 가 다 이긴다. MutationObserver 로 동적 element 도 처리.
+    (function() {
+        const FEATURES = '"hwid" 1, "pwid" 1, "kern" 1, "tnum" 0, "fwid" 0';
+        const VARIANT_EA = 'half-width';
+        const SELECTORS = 'p, span, div, h1, h2, h3, h4, h5, h6, td, th, input, button, label, li, a, small, strong, em, b, i';
+
+        function applyTo(root) {
+            const target = (root || document);
+            // 자기 자신도 처리
+            if (target.style && typeof target.style.setProperty === 'function') {
+                target.style.setProperty('font-feature-settings', FEATURES, 'important');
+                target.style.setProperty('font-variant-east-asian', VARIANT_EA, 'important');
+            }
+            target.querySelectorAll && target.querySelectorAll(SELECTORS).forEach(el => {
+                el.style.setProperty('font-feature-settings', FEATURES, 'important');
+                el.style.setProperty('font-variant-east-asian', VARIANT_EA, 'important');
+            });
+        }
+
+        // 즉시 + DOMContentLoaded + load 단계마다 적용
+        applyTo();
+        document.addEventListener('DOMContentLoaded', () => applyTo());
+        window.addEventListener('load', () => applyTo());
+        // 안전망: Streamlit hot reload 등으로 시점이 늦은 경우 대비
+        setTimeout(() => applyTo(), 500);
+        setTimeout(() => applyTo(), 2000);
+
+        // 동적 element 추가될 때마다 처리. attributes 는 관찰 안 함 → 우리가
+        // 박는 inline style 자체가 observer 를 다시 trigger 하는 무한 루프 방지.
+        function startObserver() {
+            if (!document.body) {
+                setTimeout(startObserver, 50);
+                return;
+            }
+            const obs = new MutationObserver(mutations => {
+                mutations.forEach(m => {
+                    m.addedNodes.forEach(node => {
+                        if (node.nodeType === 1) applyTo(node);
+                    });
+                });
+            });
+            obs.observe(document.body, { childList: true, subtree: true });
+        }
+        startObserver();
+    })();
 </script>
 """
 
