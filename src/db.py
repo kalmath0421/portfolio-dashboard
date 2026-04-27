@@ -435,13 +435,32 @@ def add_holding(
         )
 
 
+def holding_has_data(ticker: str, account_id: int) -> bool:
+    """종목에 거래/배당/잔고스냅샷이 하나라도 있으면 True (삭제·통화변경 방지용)."""
+    with transaction() as conn:
+        for table in ("transactions", "dividends", "positions_snapshot"):
+            row = conn.execute(
+                f"SELECT 1 FROM {table} WHERE ticker = ? AND account_id = ? LIMIT 1",
+                (ticker, account_id),
+            ).fetchone()
+            if row:
+                return True
+        return False
+
+
 def update_holding(
     ticker: str,
     account_id: int,
     name: str | None = None,
     category: str | None = None,
+    currency: str | None = None,
     note: str | None = None,
 ) -> None:
+    """종목 마스터 편집.
+
+    currency 변경은 종속 거래/배당/스냅샷이 0건일 때만 허용.
+    가격 단위가 달라지면 기존 데이터가 무의미해지기 때문.
+    """
     sets, params = [], []
     if name is not None:
         sets.append("name = ?")
@@ -451,6 +470,23 @@ def update_holding(
             raise ValueError(f"invalid category: {category}")
         sets.append("category = ?")
         params.append(category)
+    if currency is not None:
+        if currency not in ("KRW", "USD"):
+            raise ValueError(f"invalid currency: {currency}")
+        # 현재 통화와 같으면 변경 사항 없음 — 데이터 검사 스킵
+        existing = get_holding(ticker, account_id)
+        if existing is None:
+            raise ValueError(
+                f"holding {ticker} @ {account_id} not found"
+            )
+        if existing["currency"] != currency:
+            if holding_has_data(ticker, account_id):
+                raise ValueError(
+                    "거래·배당·잔고 스냅샷이 있는 종목의 통화는 변경할 수 없습니다. "
+                    "관련 데이터를 먼저 삭제한 뒤 시도하세요."
+                )
+            sets.append("currency = ?")
+            params.append(currency)
     if note is not None:
         sets.append("note = ?")
         params.append(note)
@@ -469,6 +505,23 @@ def set_holding_active(ticker: str, account_id: int, active: bool) -> None:
         conn.execute(
             "UPDATE holdings SET is_active = ? WHERE ticker = ? AND account_id = ?",
             (1 if active else 0, ticker, account_id),
+        )
+
+
+def delete_holding(ticker: str, account_id: int) -> None:
+    """종목 마스터 영구 삭제.
+
+    종속 데이터(거래·배당·잔고 스냅샷)가 하나라도 있으면 거부.
+    """
+    if holding_has_data(ticker, account_id):
+        raise ValueError(
+            "종목에 종속 데이터(거래/배당/잔고 등)가 존재해 삭제할 수 없습니다. "
+            "비활성화를 사용하거나 종속 데이터를 먼저 삭제하세요."
+        )
+    with transaction() as conn:
+        conn.execute(
+            "DELETE FROM holdings WHERE ticker = ? AND account_id = ?",
+            (ticker, account_id),
         )
 
 

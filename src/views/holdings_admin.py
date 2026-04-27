@@ -149,6 +149,8 @@ def _edit_panel() -> None:
         ticker = row["ticker"]
         account_id = row["account_id"]
 
+        has_data = db.holding_has_data(ticker, account_id)
+
         c1, c2 = st.columns(2)
         with c1:
             new_name = st.text_input("종목명", value=row["name"], key=f"edit_name_{selected_key}")
@@ -160,6 +162,24 @@ def _edit_panel() -> None:
                 format_func=lambda x: db.CATEGORIES[x],
                 key=f"edit_cat_{selected_key}",
             )
+            # 통화 — 종속 데이터가 없을 때만 변경 허용
+            cur_index = (
+                CURRENCY_OPTIONS.index(row["currency"])
+                if row["currency"] in CURRENCY_OPTIONS else 0
+            )
+            new_currency = st.selectbox(
+                "통화",
+                options=CURRENCY_OPTIONS,
+                index=cur_index,
+                disabled=has_data,
+                key=f"edit_cur_{selected_key}",
+                help=(
+                    "거래/배당/잔고 스냅샷이 있는 종목은 통화를 바꿀 수 없습니다. "
+                    "종속 데이터를 먼저 삭제하세요."
+                    if has_data
+                    else "USD ↔ KRW 변경 가능. 가격 단위가 달라지므로 종속 데이터 없을 때만 허용."
+                ),
+            )
             new_note = st.text_input(
                 "메모", value=row["note"] or "", key=f"edit_note_{selected_key}"
             )
@@ -169,19 +189,26 @@ def _edit_panel() -> None:
             st.write("")
             st.write(f"계좌: {row['account_name']}")
             st.write(f"현재 상태: {'✅ 활성' if currently_active else '⏸ 비활성'}")
+            st.write(
+                f"종속 데이터: {'있음 (삭제 불가)' if has_data else '없음 (삭제 가능)'}"
+            )
 
             b1, b2 = st.columns(2)
             with b1:
                 if st.button("💾 저장", key=f"save_{selected_key}", type="primary"):
-                    db.update_holding(
-                        ticker=ticker,
-                        account_id=account_id,
-                        name=new_name,
-                        category=new_category,
-                        note=new_note,
-                    )
-                    st.success("저장됨")
-                    st.rerun()
+                    try:
+                        db.update_holding(
+                            ticker=ticker,
+                            account_id=account_id,
+                            name=new_name,
+                            category=new_category,
+                            currency=new_currency,
+                            note=new_note,
+                        )
+                        st.success("저장됨")
+                        st.rerun()
+                    except ValueError as e:
+                        st.error(f"❌ {e}")
             with b2:
                 if currently_active:
                     if st.button("⏸ 비활성화", key=f"deact_{selected_key}"):
@@ -191,6 +218,26 @@ def _edit_panel() -> None:
                     if st.button("✅ 재활성화", key=f"react_{selected_key}"):
                         db.set_holding_active(ticker, account_id, True)
                         st.rerun()
+
+            if not has_data:
+                st.divider()
+                st.caption(
+                    "⚠️ 영구 삭제는 되돌릴 수 없습니다. 종속 데이터가 없을 때만 가능."
+                )
+                confirm_del = st.checkbox(
+                    "영구 삭제 확인", key=f"del_holding_confirm_{selected_key}"
+                )
+                if confirm_del and st.button(
+                    "🗑 영구 삭제",
+                    key=f"del_holding_btn_{selected_key}",
+                    type="secondary",
+                ):
+                    try:
+                        db.delete_holding(ticker, account_id)
+                        st.success(f"종목 {ticker} 삭제됨")
+                        st.rerun()
+                    except ValueError as e:
+                        st.error(f"❌ {e}")
 
 
 def _bulk_seed_form(accounts: list[sqlite3.Row]) -> None:

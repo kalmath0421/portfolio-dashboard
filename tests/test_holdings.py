@@ -256,3 +256,115 @@ class TestMoneyMarketDetection:
         )
         db.set_account_active(corp_account, False)
         assert db.has_money_market_etf() is False
+
+
+class TestDeleteHolding:
+    def test_delete_clean_holding(self, corp_account):
+        db.add_holding(
+            ticker="AMZN", account_id=corp_account, name="Amazon",
+            category="us_stock", currency="USD",
+        )
+        assert db.get_holding("AMZN", corp_account) is not None
+        db.delete_holding("AMZN", corp_account)
+        assert db.get_holding("AMZN", corp_account) is None
+
+    def test_delete_releases_pk_for_reinsert(self, corp_account):
+        """삭제 후 같은 (ticker, account_id) 재등록이 가능해야 — 통화 바꿔서 다시 넣는 케이스."""
+        db.add_holding(
+            ticker="AMZN", account_id=corp_account, name="Amazon",
+            category="us_stock", currency="KRW",  # 잘못된 통화
+        )
+        db.delete_holding("AMZN", corp_account)
+        # 다시 USD 로 등록 가능해야 함
+        db.add_holding(
+            ticker="AMZN", account_id=corp_account, name="Amazon",
+            category="us_stock", currency="USD",
+        )
+        h = db.get_holding("AMZN", corp_account)
+        assert h["currency"] == "USD"
+
+    def test_delete_blocked_when_has_transactions(self, corp_account):
+        db.add_holding(
+            ticker="AMZN", account_id=corp_account, name="Amazon",
+            category="us_stock", currency="USD",
+        )
+        db.add_transaction(
+            trade_date="2026-04-27", account_id=corp_account, ticker="AMZN",
+            side="BUY", quantity=10, price=200.0, currency="USD", fx_rate=1400.0,
+        )
+        with pytest.raises(ValueError, match="종속 데이터"):
+            db.delete_holding("AMZN", corp_account)
+
+    def test_holding_has_data_false_when_clean(self, corp_account):
+        db.add_holding(
+            ticker="AMZN", account_id=corp_account, name="Amazon",
+            category="us_stock", currency="USD",
+        )
+        assert db.holding_has_data("AMZN", corp_account) is False
+
+    def test_holding_has_data_true_when_tx(self, corp_account):
+        db.add_holding(
+            ticker="AMZN", account_id=corp_account, name="Amazon",
+            category="us_stock", currency="USD",
+        )
+        db.add_transaction(
+            trade_date="2026-04-27", account_id=corp_account, ticker="AMZN",
+            side="BUY", quantity=10, price=200.0, currency="USD", fx_rate=1400.0,
+        )
+        assert db.holding_has_data("AMZN", corp_account) is True
+
+
+class TestUpdateHoldingCurrency:
+    def test_change_currency_when_clean(self, corp_account):
+        db.add_holding(
+            ticker="AMZN", account_id=corp_account, name="Amazon",
+            category="us_stock", currency="KRW",  # 잘못 입력
+        )
+        db.update_holding(
+            ticker="AMZN", account_id=corp_account, currency="USD"
+        )
+        h = db.get_holding("AMZN", corp_account)
+        assert h["currency"] == "USD"
+
+    def test_change_currency_blocked_when_has_data(self, corp_account):
+        db.add_holding(
+            ticker="AMZN", account_id=corp_account, name="Amazon",
+            category="us_stock", currency="KRW",
+        )
+        db.add_transaction(
+            trade_date="2026-04-27", account_id=corp_account, ticker="AMZN",
+            side="BUY", quantity=10, price=200.0, currency="KRW",
+        )
+        with pytest.raises(ValueError, match="통화는 변경할 수 없습니다"):
+            db.update_holding(
+                ticker="AMZN", account_id=corp_account, currency="USD"
+            )
+        # 원본 통화 유지
+        assert db.get_holding("AMZN", corp_account)["currency"] == "KRW"
+
+    def test_same_currency_does_not_check_data(self, corp_account):
+        """동일 통화로 '변경'하는 건 종속 데이터 체크를 건너뛰어 영향 없음."""
+        db.add_holding(
+            ticker="AMZN", account_id=corp_account, name="Amazon",
+            category="us_stock", currency="USD",
+        )
+        db.add_transaction(
+            trade_date="2026-04-27", account_id=corp_account, ticker="AMZN",
+            side="BUY", quantity=10, price=200.0, currency="USD", fx_rate=1400.0,
+        )
+        # USD → USD 는 OK (실제 변경 사항 없음)
+        db.update_holding(
+            ticker="AMZN", account_id=corp_account, currency="USD",
+            name="Amazon Inc.",
+        )
+        assert db.get_holding("AMZN", corp_account)["name"] == "Amazon Inc."
+
+    def test_invalid_currency_rejected(self, corp_account):
+        db.add_holding(
+            ticker="AMZN", account_id=corp_account, name="Amazon",
+            category="us_stock", currency="USD",
+        )
+        with pytest.raises(ValueError, match="invalid currency"):
+            db.update_holding(
+                ticker="AMZN", account_id=corp_account, currency="JPY"
+            )
