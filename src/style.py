@@ -22,8 +22,14 @@ _CUSTOM_CSS = """
 html, body, [class*="css"], button, input, textarea, select,
 [data-testid="stSidebar"] *, [data-testid="stMetric"] *,
 h1, h2, h3, h4, h5, h6, p, span, div, label {
+    /* 핵심: Helvetica Neue / Arial 같은 ASCII-전용 system 폰트를
+       'Apple SD Gothic Neo' / 'Noto Sans KR' 같은 한글 폰트보다 앞에 둬야 함.
+       한글 폰트는 ASCII 글리프(fullwidth digit)도 가지고 있어서 fallback
+       chain 에서 ASCII 가 거기로 떨어지면 글자폭이 두 배가 되는 사고가
+       발생함 (실제 사용자 환경에서 21.8px 측정됨). */
     font-family: 'Pretendard Variable', 'Pretendard',
                  'Inter',
+                 'Helvetica Neue', 'Arial',
                  -apple-system, BlinkMacSystemFont, 'Segoe UI',
                  'Apple SD Gothic Neo', 'Noto Sans KR',
                  'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji',
