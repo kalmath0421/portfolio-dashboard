@@ -53,12 +53,15 @@ _CUSTOM_CSS = """
     font-display: swap;
 }
 
-*, *::before, *::after {
+*, *::before, *::after,
+[data-testid], [data-testid] *,
+[class*="st-emotion-cache"], [class*="st-emotion-cache"] *,
+[class*="st-"], [class*="st-"] * {
     /* InterApp 가 ASCII / Latin 을 잡고, 한글은 OS 시스템 폰트로 자동 fallback.
-       한글 폰트의 fullwidth ASCII glyph 가 사용되는 사고 차단을 위해:
-       - 'hwid' 1: half-width forms 강제 (ASCII 가 반각으로 그려지도록)
-       - font-variant-east-asian: half-width: 같은 의미를 CSS3 spec 으로
-       - vendor prefix 둘 다 명시. */
+       universal selector 만으로는 Streamlit emotion CSS 의 font-feature-settings:
+       normal / font-variant-east-asian: normal 을 못 이김 (DevTools 진단으로
+       확인). attribute selector ([data-testid], [class*=...]) 를 같이 둬서
+       specificity 보강. */
     font-family: 'InterApp',
                  system-ui, -apple-system, BlinkMacSystemFont,
                  "Segoe UI", "Helvetica Neue", Arial,
@@ -69,9 +72,9 @@ _CUSTOM_CSS = """
     word-spacing: 0 !important;
     font-variant-numeric: proportional-nums lining-nums !important;
     font-variant-east-asian: half-width !important;
-    -webkit-font-feature-settings: 'hwid' 1, 'pwid' 1, 'kern' 1, 'tnum' 0, 'fwid' 0 !important;
-    -moz-font-feature-settings: 'hwid' 1, 'pwid' 1, 'kern' 1, 'tnum' 0, 'fwid' 0 !important;
-    font-feature-settings: 'hwid' 1, 'pwid' 1, 'kern' 1, 'tnum' 0, 'fwid' 0 !important;
+    -webkit-font-feature-settings: "hwid" 1, "pwid" 1, "kern" 1, "tnum" 0, "fwid" 0 !important;
+    -moz-font-feature-settings: "hwid" 1, "pwid" 1, "kern" 1, "tnum" 0, "fwid" 0 !important;
+    font-feature-settings: "hwid" 1, "pwid" 1, "kern" 1, "tnum" 0, "fwid" 0 !important;
 }
 
 /* 이모지를 컬러로 렌더 (CSS4) */
