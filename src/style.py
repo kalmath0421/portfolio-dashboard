@@ -5,12 +5,8 @@ import streamlit as st
 
 
 _FONT_LINKS = """
-<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 """
 
 
@@ -19,39 +15,25 @@ _CUSTOM_CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined&family=Material+Symbols+Rounded&display=swap');
 
-/* unicode-range 로 ASCII 와 Hangul 의 폰트를 강제 분리.
-   font-family 리스트만으로는 일부 환경(특히 모바일)에서 한글 폰트가 ASCII
-   glyph 로 사용되는 케이스가 있어서, @font-face 에 unicode-range 를 명시해
-   브라우저가 codepoint 별로 다른 폰트 파일을 사용하도록 강제. */
-@font-face {
-    font-family: 'AppFont';
-    src: local('Inter'), local('Helvetica Neue'), local('Arial'), local('SF Pro Text');
-    unicode-range: U+0020-007F, U+00A0-024F, U+2000-206F, U+2070-209F, U+20A0-20CF;
-    font-display: swap;
-}
-@font-face {
-    font-family: 'AppFont';
-    src: local('Pretendard Variable'), local('Pretendard'), local('Apple SD Gothic Neo'), local('Noto Sans KR');
-    unicode-range: U+AC00-D7AF, U+1100-11FF, U+3130-318F, U+A960-A97F;
-    font-display: swap;
-}
-
-html, body, [class*="css"], button, input, textarea, select,
-[data-testid="stSidebar"] *, [data-testid="stMetric"] *,
-h1, h2, h3, h4, h5, h6, p, span, div, label {
-    /* 'AppFont' 가 unicode-range 로 ASCII / Hangul 을 알아서 분기.
-       그래도 안 잡히는 글자(이모지 등)는 chain 에서 내려가 fallback. */
-    font-family: 'AppFont',
-                 'Pretendard Variable', 'Pretendard',
-                 'Inter',
-                 'Helvetica Neue', 'Arial',
-                 -apple-system, BlinkMacSystemFont, 'Segoe UI',
-                 'Apple SD Gothic Neo', 'Noto Sans KR',
-                 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji',
-                 'Segoe UI Symbol', sans-serif !important;
-    letter-spacing: -0.01em;
+/* 16턴+ 디버깅 끝에 도달한 결론:
+   - 모바일 (iOS Safari/Chrome) 에서 외부 웹폰트 (Pretendard, Inter) 가
+     불규칙적으로 로드 실패하고 fallback 으로 한글 폰트의 fullwidth ASCII
+     glyph 가 사용되어 글자폭이 두 배로 그려짐.
+   - PC 에서는 시스템 폰트로 자연 fallback 되어 정상.
+   - 모든 외부 의존을 제거하고 OS 기본 sans 폰트만 사용하면 100% 정상 표시.
+     iOS/Android/macOS/Windows 모두 자기 OS 의 가장 안정적인 sans 사용.
+   - Pretendard 한글 디자인은 잃지만 가독성과 일관성이 우선. */
+*, *::before, *::after {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont,
+                 "Segoe UI", "Helvetica Neue", Arial,
+                 "Apple SD Gothic Neo", "Noto Sans KR",
+                 "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
+                 sans-serif !important;
+    letter-spacing: 0 !important;
+    word-spacing: 0 !important;
+    font-variant-numeric: proportional-nums lining-nums !important;
+    font-feature-settings: 'fwid' 0, 'pwid' 1, 'kern' 1, 'tnum' 0 !important;
     font-variant-east-asian: normal !important;
-    font-feature-settings: 'fwid' 0, 'pwid' 1, 'kern' 1 !important;
 }
 
 /* 이모지를 컬러로 렌더 (CSS4) */
