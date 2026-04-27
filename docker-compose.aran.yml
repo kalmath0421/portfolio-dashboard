@@ -25,9 +25,8 @@ services:
       - DASHBOARD_PROFILE=personal
       - DASHBOARD_TITLE=아란의 포트폴리오
       - DASHBOARD_SUBTITLE=개인 투자 모니터링
-      # 비밀번호 — NAS 에서 띄울 때 실제 비번으로 채움.
-      # 비워두면 게이트 비활성 (URL 만 알면 누구나 접속 가능).
-      - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD:-}
+      # 비밀번호는 앱 안에서 첫 접속자가 직접 등록 (DB auth 테이블, bcrypt).
+      # 운영자(NAS 관리자)는 평문 비번을 모름.
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health').read()"]
       interval: 30s

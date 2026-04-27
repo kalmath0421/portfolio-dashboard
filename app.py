@@ -95,6 +95,9 @@ def _sidebar(page_registry: dict) -> str:
     if profile_config.is_corp():
         st.sidebar.caption("Phase 4: 세금 모듈 ✅ tax.py 작성됨")
 
+    # 비밀번호 변경 / 로그아웃
+    auth.render_sidebar_change_password()
+
     return selected
 
 
@@ -107,11 +110,11 @@ def main() -> None:
     )
     style.apply_theme()
 
-    # 비밀번호 게이트 — 환경변수 DASHBOARD_PASSWORD 가 설정돼 있으면 인증 후 진행.
-    # 미설정 시엔 통과 (개발/공개 운영용).
-    auth.require_auth()
-
+    # 스키마 우선 보장 — auth 테이블 등 필요. require_auth 가 DB 를 참조하기 때문.
     _bootstrap()
+
+    # 비밀번호 게이트 — DB 미등록이면 등록, 등록 후엔 로그인. 통과 못 하면 st.stop.
+    auth.require_auth()
 
     page_registry = _build_page_registry()
     selected = _sidebar(page_registry)

@@ -1,74 +1,111 @@
-"""auth 모듈 — 비밀번호 게이트 검증."""
+"""DB 기반 비밀번호 게이트 — bcrypt 해시 저장/검증."""
 from __future__ import annotations
 
-import importlib
+from pathlib import Path
 
 import pytest
 
+from src import auth, db
+
 
 @pytest.fixture
-def reload_auth(monkeypatch):
-    """매 테스트마다 환경변수 정리 + auth 모듈 다시 import."""
-    def _reload(env: dict | None = None):
-        env = env or {}
-        monkeypatch.delenv("DASHBOARD_PASSWORD", raising=False)
-        for k, v in env.items():
-            monkeypatch.setenv(k, v)
-        from src import auth  # noqa: WPS433
-        importlib.reload(auth)
-        return auth
-
-    return _reload
+def isolated_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """매 테스트마다 임시 DB 로 격리. auth 테이블도 빈 상태로 시작."""
+    test_db_path = tmp_path / "test_portfolio.db"
+    monkeypatch.setattr(db, "DB_PATH", test_db_path)
+    db.initialize()
+    yield
 
 
-class TestIsGateEnabled:
-    def test_disabled_when_env_missing(self, reload_auth):
-        auth = reload_auth()
-        assert auth.is_gate_enabled() is False
+class TestPasswordRegistration:
+    def test_no_password_initially(self, isolated_db):
+        assert auth.is_password_set() is False
 
-    def test_disabled_when_env_empty(self, reload_auth):
-        auth = reload_auth({"DASHBOARD_PASSWORD": ""})
-        assert auth.is_gate_enabled() is False
+    def test_set_password_marks_as_set(self, isolated_db):
+        auth.set_password("hello1234")
+        assert auth.is_password_set() is True
 
-    def test_disabled_when_env_whitespace_only(self, reload_auth):
-        auth = reload_auth({"DASHBOARD_PASSWORD": "   "})
-        assert auth.is_gate_enabled() is False
+    def test_set_too_short_rejected(self, isolated_db):
+        with pytest.raises(ValueError, match="4자 이상"):
+            auth.set_password("ab")
+        assert auth.is_password_set() is False
 
-    def test_enabled_when_env_set(self, reload_auth):
-        auth = reload_auth({"DASHBOARD_PASSWORD": "swordfish"})
-        assert auth.is_gate_enabled() is True
+    def test_whitespace_only_rejected(self, isolated_db):
+        with pytest.raises(ValueError, match="4자 이상"):
+            auth.set_password("   ")
+
+    def test_overwrite_existing(self, isolated_db):
+        auth.set_password("first1234")
+        auth.set_password("second9876")
+        assert auth.verify_password("second9876") is True
+        assert auth.verify_password("first1234") is False
 
 
-class TestVerifyPassword:
-    def test_correct_password_passes(self, reload_auth):
-        auth = reload_auth({"DASHBOARD_PASSWORD": "swordfish"})
+class TestPasswordVerification:
+    def test_correct_password_passes(self, isolated_db):
+        auth.set_password("swordfish")
         assert auth.verify_password("swordfish") is True
 
-    def test_wrong_password_rejected(self, reload_auth):
-        auth = reload_auth({"DASHBOARD_PASSWORD": "swordfish"})
+    def test_wrong_password_rejected(self, isolated_db):
+        auth.set_password("swordfish")
         assert auth.verify_password("salmon") is False
 
-    def test_empty_input_rejected_when_gate_enabled(self, reload_auth):
-        auth = reload_auth({"DASHBOARD_PASSWORD": "swordfish"})
+    def test_empty_input_rejected(self, isolated_db):
+        auth.set_password("swordfish")
         assert auth.verify_password("") is False
 
-    def test_whitespace_trimmed_on_compare(self, reload_auth):
-        """앞뒤 공백은 자동 제거 — 모바일 자동 입력에서 흔한 케이스."""
-        auth = reload_auth({"DASHBOARD_PASSWORD": "swordfish"})
+    def test_whitespace_trimmed(self, isolated_db):
+        auth.set_password("swordfish")
         assert auth.verify_password("  swordfish  ") is True
 
-    def test_case_sensitive(self, reload_auth):
-        auth = reload_auth({"DASHBOARD_PASSWORD": "SwordFish"})
+    def test_case_sensitive(self, isolated_db):
+        auth.set_password("SwordFish")
         assert auth.verify_password("swordfish") is False
         assert auth.verify_password("SwordFish") is True
 
-    def test_no_env_means_anything_passes(self, reload_auth):
-        """환경변수 미설정 = 게이트 비활성 → 어떤 입력이든 통과."""
-        auth = reload_auth()
-        assert auth.verify_password("anything") is True
-        assert auth.verify_password("") is True
-
-    def test_unicode_password(self, reload_auth):
-        auth = reload_auth({"DASHBOARD_PASSWORD": "한글비번123"})
+    def test_unicode_password(self, isolated_db):
+        auth.set_password("한글비번123")
         assert auth.verify_password("한글비번123") is True
         assert auth.verify_password("한글비번") is False
+
+    def test_no_password_set_means_verify_false(self, isolated_db):
+        assert auth.verify_password("anything") is False
+
+
+class TestPasswordChange:
+    def test_correct_old_changes_password(self, isolated_db):
+        auth.set_password("old_pass")
+        auth.change_password("old_pass", "new_pass1")
+        assert auth.verify_password("new_pass1") is True
+        assert auth.verify_password("old_pass") is False
+
+    def test_wrong_old_rejected(self, isolated_db):
+        auth.set_password("old_pass")
+        with pytest.raises(ValueError, match="이전 비밀번호"):
+            auth.change_password("wrong", "new_pass1")
+        # 원본 비번 그대로
+        assert auth.verify_password("old_pass") is True
+
+    def test_change_to_short_rejected(self, isolated_db):
+        auth.set_password("old_pass")
+        with pytest.raises(ValueError, match="4자 이상"):
+            auth.change_password("old_pass", "ab")
+        assert auth.verify_password("old_pass") is True
+
+
+class TestStorageDoesNotLeakPlaintext:
+    def test_db_stores_hash_not_plaintext(self, isolated_db):
+        auth.set_password("secret_pw_123")
+        stored = db.auth_get_hash()
+        assert stored is not None
+        # bcrypt 해시는 $2b$ 또는 $2a$ 로 시작하고 평문이 들어가 있지 않음
+        assert stored.startswith("$2")
+        assert "secret_pw_123" not in stored
+
+
+class TestAuthClear:
+    def test_clear_removes_password(self, isolated_db):
+        auth.set_password("hello1234")
+        assert auth.is_password_set() is True
+        db.auth_clear()
+        assert auth.is_password_set() is False

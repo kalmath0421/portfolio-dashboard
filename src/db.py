@@ -156,6 +156,12 @@ CREATE TABLE IF NOT EXISTS tax_events (
     note TEXT
 );
 
+CREATE TABLE IF NOT EXISTS auth (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    password_hash TEXT NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE INDEX IF NOT EXISTS idx_tx_date ON transactions(trade_date);
 CREATE INDEX IF NOT EXISTS idx_tx_acct_ticker ON transactions(account_id, ticker);
 CREATE INDEX IF NOT EXISTS idx_div_date ON dividends(pay_date);
@@ -906,3 +912,42 @@ def find_unregistered_tickers(
         ).fetchall()
         registered = {r["ticker"] for r in rows}
     return [t for t in tickers if t not in registered]
+
+
+# --- 비밀번호 (auth 테이블) ---
+
+def auth_has_password() -> bool:
+    """auth 테이블에 비밀번호 해시가 등록되어 있으면 True."""
+    with transaction() as conn:
+        row = conn.execute("SELECT 1 FROM auth WHERE id = 1").fetchone()
+        return row is not None
+
+
+def auth_get_hash() -> str | None:
+    """등록된 비밀번호 해시 반환. 없으면 None."""
+    with transaction() as conn:
+        row = conn.execute(
+            "SELECT password_hash FROM auth WHERE id = 1"
+        ).fetchone()
+        return row["password_hash"] if row else None
+
+
+def auth_set_hash(password_hash: str) -> None:
+    """비밀번호 해시 저장. UPSERT — 기존이 있으면 덮어씀."""
+    with transaction() as conn:
+        conn.execute(
+            """
+            INSERT INTO auth (id, password_hash, updated_at)
+            VALUES (1, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(id) DO UPDATE SET
+                password_hash = excluded.password_hash,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (password_hash,),
+        )
+
+
+def auth_clear() -> None:
+    """비밀번호 해시 삭제 (운영자 reset 용)."""
+    with transaction() as conn:
+        conn.execute("DELETE FROM auth WHERE id = 1")
