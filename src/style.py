@@ -266,6 +266,16 @@ hr {
     margin: 1.25rem 0 !important;
 }
 
+/* ---- 좁은 데스크탑 (sidebar + 4-column 메트릭이 좁아지는 구간) ---- */
+@media (min-width: 769px) and (max-width: 1366px) {
+    [data-testid="stMetricValue"] {
+        font-size: 1.25rem !important;  /* 1.65 → 1.25, column 폭 안에 들어가도록 */
+    }
+    [data-testid="stMetric"] {
+        padding: 0.75rem 0.85rem !important;
+    }
+}
+
 /* ---- 모바일 (768px 이하) ---- */
 @media (max-width: 768px) {
     /* 가로 오버플로우 방지 */
