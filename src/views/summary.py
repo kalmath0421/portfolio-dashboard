@@ -368,10 +368,11 @@ def render() -> None:
         )
 
     if s["fx_cache"]:
+        fx = s["fx_cache"]
+        stale_note = " · ⚠️ 갱신 필요" if fx.is_stale else ""
         st.caption(
-            f"💱 환율 USD/KRW = {s['fx_cache'].rate:,.2f} "
-            f"({s['fx_cache'].as_of}, {s['fx_cache'].source}"
-            f"{', stale' if s['fx_cache'].is_stale else ''})"
+            f"💱 **환율 USD/KRW = {fx.rate:,.2f}원** "
+            f"· 기준일 {fx.as_of} · 출처 {fx.source}{stale_note}"
         )
 
     st.divider()
