@@ -6,23 +6,39 @@ import streamlit as st
 
 _CUSTOM_CSS = """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap');
+/* Google Fonts 에서 Inter (영문/숫자) + Noto Sans KR (한글) 명시 로드.
+   시스템 폰트에 의존하면 환경마다 메트릭이 달라 숫자 흩어짐이 재발할 수 있어
+   외부 폰트로 환경 무관하게 고정. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&family=Noto+Color+Emoji&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined&family=Material+Symbols+Rounded&display=swap');
 
-/* 시스템 폰트만 사용 — Pretendard 의 한글-숫자 폭 불일치를 회피.
-   macOS: SF Pro Display/Text + Apple SD Gothic Neo (한글) — 메트릭 일관.
-   Windows: Segoe UI + Malgun Gothic. 둘 다 숫자 흩어짐 없음. */
 html, body, *, *::before, *::after {
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display',
-                 'SF Pro Text', 'Helvetica Neue',
-                 'Apple SD Gothic Neo', 'Segoe UI', 'Malgun Gothic',
-                 system-ui, sans-serif !important;
+    font-family: 'Inter', 'Noto Sans KR', -apple-system, BlinkMacSystemFont,
+                 'Apple SD Gothic Neo', 'Segoe UI', system-ui, sans-serif !important;
     letter-spacing: 0 !important;
     word-spacing: 0 !important;
     font-variant-numeric: proportional-nums lining-nums !important;
     font-feature-settings: 'pnum' 1, 'lnum' 1, 'kern' 1, 'tnum' 0 !important;
     -webkit-font-smoothing: antialiased !important;
     text-rendering: optimizeLegibility !important;
+}
+
+/* st.metric 의 값은 더 specific 한 testid selector 로 한 번 더 강제 — 일부
+   Streamlit 빌드에서 글로벌 룰이 emotion 인라인 스타일에 밀리는 케이스 회피. */
+[data-testid="stMetricValue"],
+[data-testid="stMetricValue"] *,
+[data-testid="stMetricDelta"],
+[data-testid="stMetricDelta"] *,
+[data-testid="stMarkdownContainer"] *,
+[data-testid="stHeading"] *,
+[data-testid="stDataFrame"] *,
+[data-testid="stTable"] *,
+input, td, th {
+    font-family: 'Inter', 'Noto Sans KR', sans-serif !important;
+    letter-spacing: 0 !important;
+    word-spacing: 0 !important;
+    font-variant-numeric: proportional-nums lining-nums !important;
+    font-feature-settings: 'pnum' 1, 'lnum' 1, 'kern' 1, 'tnum' 0 !important;
 }
 
 /* 이모지를 컬러로 렌더 (CSS4) */
