@@ -368,3 +368,93 @@ class TestUpdateHoldingCurrency:
             db.update_holding(
                 ticker="AMZN", account_id=corp_account, currency="JPY"
             )
+
+
+class TestTickerNormalization:
+    """티커는 .strip().upper() 로 정규화되어 저장·조회된다."""
+
+    def test_lowercase_normalized_on_add(self, corp_account):
+        db.add_holding(
+            ticker="amzn", account_id=corp_account, name="Amazon",
+            category="us_stock", currency="USD",
+        )
+        # 대문자로 저장되어 있어야 함
+        h = db.get_holding("AMZN", corp_account)
+        assert h is not None
+        assert h["ticker"] == "AMZN"
+
+    def test_lookup_case_insensitive(self, corp_account):
+        """대문자로 등록한 종목을 소문자로 조회해도 찾을 수 있어야."""
+        db.add_holding(
+            ticker="AMZN", account_id=corp_account, name="Amazon",
+            category="us_stock", currency="USD",
+        )
+        assert db.get_holding("amzn", corp_account) is not None
+        assert db.get_holding("AmZn", corp_account) is not None
+
+    def test_whitespace_trimmed(self, corp_account):
+        db.add_holding(
+            ticker="  amzn  ", account_id=corp_account, name="Amazon",
+            category="us_stock", currency="USD",
+        )
+        h = db.get_holding("AMZN", corp_account)
+        assert h is not None
+        assert h["ticker"] == "AMZN"
+
+    def test_duplicate_different_case_blocked(self, corp_account):
+        """동일 종목을 다른 case 로 두 번 등록하면 두 번째는 IntegrityError."""
+        db.add_holding(
+            ticker="AMZN", account_id=corp_account, name="Amazon",
+            category="us_stock", currency="USD",
+        )
+        with pytest.raises(sqlite3.IntegrityError):
+            db.add_holding(
+                ticker="amzn", account_id=corp_account, name="Amazon Lower",
+                category="us_stock", currency="USD",
+            )
+
+    def test_korean_numeric_ticker_unaffected(self, corp_account):
+        """한국 ETF 티커(숫자)는 .upper() 영향 없음 — 그대로 저장."""
+        db.add_holding(
+            ticker="292150", account_id=corp_account, name="TIGER 코리아TOP10",
+            category="domestic_equity_etf", currency="KRW",
+        )
+        h = db.get_holding("292150", corp_account)
+        assert h is not None
+        assert h["ticker"] == "292150"
+
+    def test_transaction_ticker_normalized(self, corp_account):
+        db.add_holding(
+            ticker="AMZN", account_id=corp_account, name="Amazon",
+            category="us_stock", currency="USD",
+        )
+        tx_id = db.add_transaction(
+            trade_date="2026-04-27", account_id=corp_account,
+            ticker="amzn",  # 소문자 입력
+            side="BUY", quantity=10, price=200.0,
+            currency="USD", fx_rate=1400.0,
+        )
+        rows = db.list_transactions()
+        match = [r for r in rows if r["id"] == tx_id]
+        assert len(match) == 1
+        assert match[0]["ticker"] == "AMZN"  # 정규화되어 저장
+
+    def test_initial_position_ticker_normalized(self, corp_account):
+        db.add_holding(
+            ticker="AMZN", account_id=corp_account, name="Amazon",
+            category="us_stock", currency="USD",
+        )
+        db.add_initial_position(
+            account_id=corp_account, ticker="amzn",  # 소문자
+            quantity=10, avg_price=200.0, avg_fx_rate=1400.0,
+        )
+        rows = db.list_transactions()
+        assert all(r["ticker"] == "AMZN" for r in rows)
+
+    def test_delete_holding_works_with_lowercase(self, corp_account):
+        db.add_holding(
+            ticker="AMZN", account_id=corp_account, name="Amazon",
+            category="us_stock", currency="USD",
+        )
+        db.delete_holding("amzn", corp_account)  # 소문자로 삭제 시도
+        assert db.get_holding("AMZN", corp_account) is None

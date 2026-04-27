@@ -19,6 +19,18 @@ KIND_CORP = "corp"
 KIND_PERSONAL = "personal"
 KINDS = {KIND_CORP: "법인", KIND_PERSONAL: "개인"}
 
+
+def _normalize_ticker(ticker: str) -> str:
+    """티커는 대문자·앞뒤 공백 제거로 정규화.
+
+    SQLite 기본 비교가 대소문자 구분이라 'AMZN' 과 'amzn' 이 별개의
+    PK 로 등록되는 사고를 막는다. 한국 ETF 티커는 숫자라 .upper()
+    영향 없음, 미국 티커는 항상 대문자가 정답.
+    """
+    if ticker is None:
+        return ticker
+    return ticker.strip().upper()
+
 CATEGORIES = {
     "domestic_equity_etf": "국내주식ETF",
     "overseas_equity_etf_kr_listed": "국내상장 해외ETF",
@@ -400,6 +412,7 @@ def list_holdings(
 
 
 def get_holding(ticker: str, account_id: int) -> sqlite3.Row | None:
+    ticker = _normalize_ticker(ticker)
     with transaction() as conn:
         return conn.execute(
             "SELECT * FROM holdings WHERE ticker = ? AND account_id = ?",
@@ -415,11 +428,12 @@ def add_holding(
     currency: str,
     note: str | None = None,
 ) -> None:
+    ticker = _normalize_ticker(ticker)
     if category not in CATEGORIES:
         raise ValueError(f"invalid category: {category}")
     if currency not in ("KRW", "USD"):
         raise ValueError(f"invalid currency: {currency}")
-    if not ticker.strip() or not name.strip():
+    if not ticker or not name.strip():
         raise ValueError("ticker and name are required")
     with transaction() as conn:
         if not conn.execute(
@@ -431,12 +445,13 @@ def add_holding(
             INSERT INTO holdings (ticker, account_id, name, category, currency, note)
             VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (ticker.strip(), account_id, name.strip(), category, currency, note),
+            (ticker, account_id, name.strip(), category, currency, note),
         )
 
 
 def holding_has_data(ticker: str, account_id: int) -> bool:
     """종목에 거래/배당/잔고스냅샷이 하나라도 있으면 True (삭제·통화변경 방지용)."""
+    ticker = _normalize_ticker(ticker)
     with transaction() as conn:
         for table in ("transactions", "dividends", "positions_snapshot"):
             row = conn.execute(
@@ -461,6 +476,7 @@ def update_holding(
     currency 변경은 종속 거래/배당/스냅샷이 0건일 때만 허용.
     가격 단위가 달라지면 기존 데이터가 무의미해지기 때문.
     """
+    ticker = _normalize_ticker(ticker)
     sets, params = [], []
     if name is not None:
         sets.append("name = ?")
@@ -501,6 +517,7 @@ def update_holding(
 
 
 def set_holding_active(ticker: str, account_id: int, active: bool) -> None:
+    ticker = _normalize_ticker(ticker)
     with transaction() as conn:
         conn.execute(
             "UPDATE holdings SET is_active = ? WHERE ticker = ? AND account_id = ?",
@@ -513,6 +530,7 @@ def delete_holding(ticker: str, account_id: int) -> None:
 
     종속 데이터(거래·배당·잔고 스냅샷)가 하나라도 있으면 거부.
     """
+    ticker = _normalize_ticker(ticker)
     if holding_has_data(ticker, account_id):
         raise ValueError(
             "종목에 종속 데이터(거래/배당/잔고 등)가 존재해 삭제할 수 없습니다. "
@@ -550,15 +568,16 @@ def bulk_add_holdings(
             if currency not in ("KRW", "USD"):
                 raise ValueError(f"invalid currency: {currency}")
 
+            normalized_ticker = _normalize_ticker(h["ticker"])
             existing = conn.execute(
                 "SELECT 1 FROM holdings WHERE ticker = ? AND account_id = ?",
-                (h["ticker"], account_id),
+                (normalized_ticker, account_id),
             ).fetchone()
             if existing:
                 if skip_existing:
                     continue
                 raise sqlite3.IntegrityError(
-                    f"already exists: {h['ticker']} in account {account_id}"
+                    f"already exists: {normalized_ticker} in account {account_id}"
                 )
             conn.execute(
                 """
@@ -567,7 +586,7 @@ def bulk_add_holdings(
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    h["ticker"].strip(),
+                    normalized_ticker,
                     account_id,
                     h["name"].strip(),
                     category,
@@ -603,6 +622,7 @@ def add_transaction(
     fee: float = 0,
     note: str | None = None,
 ) -> int:
+    ticker = _normalize_ticker(ticker)
     if side not in ("BUY", "SELL"):
         raise ValueError(f"invalid side: {side}")
     if currency not in ("KRW", "USD"):
@@ -652,6 +672,7 @@ def add_initial_position(
     내부적으로 add_transaction()을 호출하므로 평균단가·평가손익 계산이
     그대로 작동.
     """
+    ticker = _normalize_ticker(ticker)
     if base_date is None:
         from datetime import date as _date
         base_date = _date.today().isoformat()
@@ -716,6 +737,7 @@ def add_dividend(
     fx_rate: float | None = None,
     note: str | None = None,
 ) -> int:
+    ticker = _normalize_ticker(ticker)
     if currency not in ("KRW", "USD"):
         raise ValueError(f"invalid currency: {currency}")
     if gross_amount <= 0:
