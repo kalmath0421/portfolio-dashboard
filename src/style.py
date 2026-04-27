@@ -1,7 +1,19 @@
 """대시보드 커스텀 CSS — 카드 메트릭, Pretendard 한글 폰트, 정돈된 레이아웃."""
 from __future__ import annotations
 
+from pathlib import Path
+
 import streamlit as st
+
+
+# Inter Latin subset woff2 를 base64 로 inline.
+# 17턴 디버깅 끝에 도달한 결론: 모바일에서 외부 웹폰트 다운로드가 불규칙적이라
+# 어떤 fallback chain 을 짜도 한글 폰트의 fullwidth ASCII glyph 로 대체되어
+# 글자폭이 두 배가 되는 사고가 발생. base64 inline 으로 외부 의존 0 만들면
+# CSP / 네트워크 / fallback 어떤 변수도 문제 안 됨.
+_INTER_LATIN_B64 = (
+    Path(__file__).parent / "fonts" / "inter-latin.woff2.b64"
+).read_text().strip()
 
 
 _FONT_LINKS = """
@@ -15,16 +27,25 @@ _CUSTOM_CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined&family=Material+Symbols+Rounded&display=swap');
 
-/* 16턴+ 디버깅 끝에 도달한 결론:
-   - 모바일 (iOS Safari/Chrome) 에서 외부 웹폰트 (Pretendard, Inter) 가
-     불규칙적으로 로드 실패하고 fallback 으로 한글 폰트의 fullwidth ASCII
-     glyph 가 사용되어 글자폭이 두 배로 그려짐.
-   - PC 에서는 시스템 폰트로 자연 fallback 되어 정상.
-   - 모든 외부 의존을 제거하고 OS 기본 sans 폰트만 사용하면 100% 정상 표시.
-     iOS/Android/macOS/Windows 모두 자기 OS 의 가장 안정적인 sans 사용.
-   - Pretendard 한글 디자인은 잃지만 가독성과 일관성이 우선. */
+/* Inter Latin (subset) — base64 inline. 외부 다운로드 없이 즉시 사용.
+   unicode-range 로 ASCII / Latin-Extended 만 매칭. 한글은 시스템 폰트. */
+@font-face {
+    font-family: 'InterApp';
+    src: url(data:font/woff2;base64,___INTER_B64___) format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+                   U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F,
+                   U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+                   U+FEFF, U+FFFD;
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+}
+
 *, *::before, *::after {
-    font-family: system-ui, -apple-system, BlinkMacSystemFont,
+    /* InterApp 가 ASCII / Latin 을 잡고, 한글은 OS 시스템 폰트로 자동 fallback.
+       모바일에서 한글 폰트의 fullwidth ASCII glyph 가 사용되는 사고 차단. */
+    font-family: 'InterApp',
+                 system-ui, -apple-system, BlinkMacSystemFont,
                  "Segoe UI", "Helvetica Neue", Arial,
                  "Apple SD Gothic Neo", "Noto Sans KR",
                  "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
@@ -327,9 +348,9 @@ hr {
 def apply_theme() -> None:
     """앱 부팅 시 1회 호출 — 전체 화면에 커스텀 CSS 적용.
 
-    Pretendard 웹폰트는 <link rel="stylesheet"> 로 직접 로드해야 안정적.
-    @import 방식은 CSP / 브라우저 정책에 따라 실패 케이스가 있어 fallback 으로
-    이상한 wide glyph 가 사용되는 사고가 발생함 (글자폭이 두 배가 되는 증상).
+    Inter Latin woff2 가 base64 로 inline 되어 외부 폰트 다운로드 없이도
+    ASCII glyph 가 정상 너비로 그려진다 (모바일 fullwidth fallback 문제 해결).
     """
+    css = _CUSTOM_CSS.replace("___INTER_B64___", _INTER_LATIN_B64)
     st.markdown(_FONT_LINKS, unsafe_allow_html=True)
-    st.markdown(_CUSTOM_CSS, unsafe_allow_html=True)
+    st.markdown(css, unsafe_allow_html=True)
