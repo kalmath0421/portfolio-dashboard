@@ -56,9 +56,42 @@ NAS 한 대에 **두 인스턴스가 동시에 운영 중**. 같은 코드베이
 - compose 파일: `docker-compose.aran.yml` (리포에 커밋, 그대로 복사 후 사용)
 - ASUS 추가 작업 ❌ (4443/80 기존 포트포워딩 그대로 활용)
 
-### 3) 보안
+### 3) 보안 — 컨테이너 인증 없음
 - DSM `admin` 계정에 강력한 비밀번호 + 2FA 적용
-- 컨테이너 자체엔 인증 없음 → DSM 로그인 포털 게이트 추가 검토
+- 컨테이너 자체엔 인증 0단계 → URL만 알면 누구나 열람·수정 가능
+- 두 도메인 다 노출 상태 (`portfolio.kalmath.i234.me:4443`, `aran.kalmath.i234.me:4443`)
+- **다음 세션 후보 옵션 A — 앱 자체 비밀번호 게이트 (10분)**:
+  - `DASHBOARD_PASSWORD` 환경변수 + `src/auth.py` 모듈 (st.text_input + session_state)
+  - docker-compose 두 인스턴스에 각각 다른 비번 환경변수
+  - 강도: 봇/우연한 접속 차단 충분, 본격 해커엔 무리
+- 더 강력한 옵션 (장기):
+  - Nginx 사이드카 + Basic Auth (사이드카 컨테이너 추가)
+  - DSM 로그인 포털 게이트 (DSM 버전별 가능 여부 다름)
+  - VPN (WireGuard/Tailscale) — 가장 강력하지만 폰에 VPN 앱 필요
+
+### 4) 폰트 미세조정 — 숫자 자간/베이스라인
+- 한글-숫자 fallback 메트릭 차이 + 글로벌 `letter-spacing: -0.01em` 결합으로
+  표·메트릭·입력란의 숫자가 한 글자씩 흩어져 보이고 베이스라인이 살짝 어긋남
+- 진단 완료: Pretendard 자체는 잘 로드 (CDN 문제 X)
+- **해결안**: `font-variant-numeric: tabular-nums lining-nums` +
+  `font-feature-settings: 'tnum'` + `letter-spacing: 0` 을 표/메트릭/입력 selector
+  에만 적용 (Pretendard tabular figures 지원함)
+- 운영 영향 없는 미적 이슈 — 우선순위 낮음
+
+### 5) 모바일 메트릭 라벨 잘림
+- 좁은 화면에서 사이드바의 활성 계좌 라벨이나 메트릭 라벨이 "총...", "투..." 처럼 잘림
+- 폰트 사이즈 한 단계 더 축소 또는 1줄→2줄 wrap 허용으로 해결 예상
+
+### 6) NAS GitHub SSH 키 셋업
+- 현재 wget+tar 방식 (private↔public 토글 필요)
+- NAS의 admin 계정에 SSH 키 만들고 GitHub에 등록하면 `git pull` 한 줄로 끝
+- 단, admin 홈 디렉토리가 없어 `~/.ssh` 위치를 명시적으로 지정해줘야 함
+  (또는 다른 사용자로 키 셋업)
+
+### 7) 향후 Phase
+- Phase 2 — IBK/농협 CSV 임포터 + yfinance/pykrx 자동 시세
+- Phase 3 — 화면 구현 (시세 후 차트/계좌별/요약 강화)
+- Phase 4 — 세금 모듈 마무리 + CSV 내보내기 (corp 인스턴스 전용)
 
 ## 운영 절차
 
