@@ -23,6 +23,17 @@ html, body, *, *::before, *::after {
     text-rendering: optimizeLegibility !important;
 }
 
+/* DevTools 진단 결과: Streamlit 의 emotion CSS (`st-emotion-cache-XXX` 클래스)
+   가 letter-spacing 을 normal 로 강제 — 글로벌 `*` selector 보다 specificity
+   가 높아 위쪽 룰이 무력화됨. 같은 emotion 클래스를 타겟해 음수 자간 강제. */
+[class*="st-emotion-cache"],
+[class*="st-emotion-cache"] * {
+    letter-spacing: -0.03em !important;
+    word-spacing: 0 !important;
+    font-variant-numeric: proportional-nums lining-nums !important;
+    font-feature-settings: 'pnum' 1, 'lnum' 1, 'kern' 1, 'tnum' 0 !important;
+}
+
 /* st.metric 의 값은 더 specific 한 testid selector 로 한 번 더 강제 — 일부
    Streamlit 빌드에서 글로벌 룰이 emotion 인라인 스타일에 밀리는 케이스 회피. */
 [data-testid="stMetricValue"],
