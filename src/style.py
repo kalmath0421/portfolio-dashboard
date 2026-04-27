@@ -23,6 +23,27 @@ h1, h2, h3, h4, h5, h6, p, span, div, label {
 /* 이모지를 컬러로 렌더 (CSS4) */
 * { font-variant-emoji: emoji; }
 
+/* ---- st.metric value 의 폭 강제 해제 (숫자 흩어짐 fix) ----
+   진짜 원인이었던 것: column 레이아웃에서 메트릭 카드가 좁아질 때 metric value
+   내부 box 가 컨테이너 너비에 맞춰 글자를 균등 분배 (text-align justify 효과).
+   letter-spacing 은 'normal' 로 잡혀 있어 자간 fix 가 무력했던 이유.
+   해결: width 자동 + max-content 로 글자가 자연스러운 폭만 차지하게 + nowrap
+   으로 분배 차단. */
+[data-testid="stMetricValue"],
+[data-testid="stMetricValue"] [data-testid="stMarkdownContainer"],
+[data-testid="stMetricValue"] p {
+    width: auto !important;
+    min-width: max-content !important;
+    max-width: none !important;
+    white-space: nowrap !important;
+    overflow: visible !important;
+}
+
+[data-testid="stMetricValue"] p {
+    font-variant-numeric: normal !important;
+    font-feature-settings: normal !important;
+}
+
 /* ---- Material Symbols 아이콘 ---- */
 /* 글로벌 font-family !important 룰이 아이콘 폰트를 덮어버려 ligature 텍스트
    (예: keyboard_double_arrow_right) 가 그대로 노출되는 걸 방지. */
