@@ -346,30 +346,26 @@ def render() -> None:
             _format_krw(s["total_cost"]),
         )
 
-    # 분배금 포함 총수익 / 총수익률 — 자본이득(미실현) + 누적 분배금(세후)
-    # 으로 계산. 매입원가 기준 비율로 표시.
+    # 분배금 포함 총수익 — 자본이득(미실현) + 누적 분배금(세후).
+    # 수익률은 delta 에 함께 표기해 카드 한 개로 통합 (산만함 줄이기).
     if s["total_cost"] > 0:
         total_return = D(str(s["total_unreal"])) + D(str(s["div_net"]))
         total_return_pct = (
             total_return / D(str(s["total_cost"])) * D(100)
         ).quantize(D("0.01"))
-        c3, c4 = st.columns(2)
-        with c3:
-            st.metric(
-                "💎 총수익 (분배금 포함, 세후)",
-                _format_krw(total_return),
-                delta=f"미실현 {_format_krw(s['total_unreal'])} + 분배금 {_format_krw(s['div_net'])}",
-                help=(
-                    "보유 종목의 미실현 손익 + 누적 분배금(원천징수 후) 합계. "
-                    "지금 모두 매도하면 통장에 남을 추정 금액에 가까움 (매도 수수료·세금 별도)."
-                ),
-            )
-        with c4:
-            st.metric(
-                "📈 총수익률 (분배금 포함)",
-                _format_pct(total_return_pct),
-                help="총수익 / 매입원가 × 100. 단순 자본이득 수익률보다 분배금만큼 높음.",
-            )
+        st.metric(
+            "💎 총수익 (분배금 포함, 세후)",
+            _format_krw(total_return),
+            delta=(
+                f"{_format_pct(total_return_pct)} · "
+                f"미실현 {_format_krw(s['total_unreal'])} + 분배금 {_format_krw(s['div_net'])}"
+            ),
+            help=(
+                "보유 종목의 미실현 손익 + 누적 분배금(원천징수 후) 합계. "
+                "지금 모두 매도하면 통장에 남을 추정 금액에 가까움 (매도 수수료·세금 별도). "
+                "수익률 = 총수익 / 매입원가 × 100."
+            ),
+        )
 
     if s["fx_cache"]:
         st.caption(
