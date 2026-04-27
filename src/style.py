@@ -4,16 +4,23 @@ from __future__ import annotations
 import streamlit as st
 
 
+_FONT_LINKS = """
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+"""
+
+
 _CUSTOM_CSS = """
 <style>
-@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
 @import url('https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined&family=Material+Symbols+Rounded&display=swap');
 
 html, body, [class*="css"], button, input, textarea, select,
 [data-testid="stSidebar"] *, [data-testid="stMetric"] *,
 h1, h2, h3, h4, h5, h6, p, span, div, label {
-    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    font-family: 'Pretendard Variable', 'Pretendard',
+                 -apple-system, BlinkMacSystemFont, 'Segoe UI',
                  'Apple SD Gothic Neo', 'Noto Sans KR',
                  'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji',
                  'Segoe UI Symbol', sans-serif !important;
@@ -309,5 +316,11 @@ hr {
 
 
 def apply_theme() -> None:
-    """앱 부팅 시 1회 호출 — 전체 화면에 커스텀 CSS 적용."""
+    """앱 부팅 시 1회 호출 — 전체 화면에 커스텀 CSS 적용.
+
+    Pretendard 웹폰트는 <link rel="stylesheet"> 로 직접 로드해야 안정적.
+    @import 방식은 CSP / 브라우저 정책에 따라 실패 케이스가 있어 fallback 으로
+    이상한 wide glyph 가 사용되는 사고가 발생함 (글자폭이 두 배가 되는 증상).
+    """
+    st.markdown(_FONT_LINKS, unsafe_allow_html=True)
     st.markdown(_CUSTOM_CSS, unsafe_allow_html=True)
