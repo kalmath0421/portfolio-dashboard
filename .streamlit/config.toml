@@ -4,7 +4,29 @@ primaryColor = "#F5A623"
 backgroundColor = "#0F1218"
 secondaryBackgroundColor = "#171B24"
 textColor = "#E6E9EF"
-font = "sans serif"
+font = "Pretendard"
+
+# Streamlit 1.36+ 의 fontFaces — base font 를 정확히 등록해서 빌드 시
+# Streamlit 이 inline 으로 박는 폰트가 우리 CSS 와 어긋나지 않게 한다.
+[[theme.fontFaces]]
+family = "Pretendard"
+url = "https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/woff2/Pretendard-Regular.woff2"
+weight = "400"
+
+[[theme.fontFaces]]
+family = "Pretendard"
+url = "https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/woff2/Pretendard-Medium.woff2"
+weight = "500"
+
+[[theme.fontFaces]]
+family = "Pretendard"
+url = "https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/woff2/Pretendard-SemiBold.woff2"
+weight = "600"
+
+[[theme.fontFaces]]
+family = "Pretendard"
+url = "https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/woff2/Pretendard-Bold.woff2"
+weight = "700"
 
 [browser]
 gatherUsageStats = false
