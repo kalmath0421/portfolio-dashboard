@@ -657,6 +657,61 @@ def add_transaction(
         return cur.lastrowid
 
 
+def add_holding_with_initial_position(
+    account_id: int,
+    ticker: str,
+    name: str,
+    category: str,
+    currency: str,
+    quantity: float,
+    avg_price: float,
+    avg_fx_rate: float | None = None,
+    base_date: str | None = None,
+    note: str | None = None,
+) -> tuple[bool, int]:
+    """종목 마스터 + 초기 보유분(BUY 거래) 한 번에 등록.
+
+    이미 같은 (ticker, account_id) 종목이 있으면:
+    - 통화가 일치하면: 종목은 그대로 두고 거래만 추가 (UPSERT 의도)
+    - 통화가 다르면: ValueError
+
+    Returns: (holding_created, transaction_id)
+        holding_created=True 면 종목 마스터를 새로 만들었음.
+        False 면 이미 있는 종목에 거래만 추가.
+    """
+    ticker = _normalize_ticker(ticker)
+    existing = get_holding(ticker, account_id)
+    holding_created = False
+    if existing is None:
+        add_holding(
+            ticker=ticker,
+            account_id=account_id,
+            name=name,
+            category=category,
+            currency=currency,
+            note=note,
+        )
+        holding_created = True
+    else:
+        if existing["currency"] != currency:
+            raise ValueError(
+                f"이미 등록된 종목 {ticker} 의 통화는 {existing['currency']} 입니다. "
+                f"입력값 {currency} 와 다릅니다."
+            )
+        # 종목명이 비어있는데 새로 입력값이 들어오면 이름 보정 (선택)
+
+    tx_id = add_initial_position(
+        account_id=account_id,
+        ticker=ticker,
+        quantity=quantity,
+        avg_price=avg_price,
+        avg_fx_rate=avg_fx_rate,
+        base_date=base_date,
+        note=note,
+    )
+    return holding_created, tx_id
+
+
 def add_initial_position(
     account_id: int,
     ticker: str,

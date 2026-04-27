@@ -45,6 +45,152 @@ def _suggested_fx_rate(trade_date: date) -> float | None:
     return float(row["usdkrw"]) if row else None
 
 
+def _combined_new_holding_form() -> None:
+    """종목 마스터 + 초기 보유분(BUY 거래)을 한 화면에서 동시에 등록.
+
+    원래 ⚙️ 종목 관리에서 종목을 등록하고, 📝 거래 입력으로 와서 다시 거래를
+    넣는 두 단계 절차를 한 번에 처리. 신규 종목을 빠르게 추가할 때 사용.
+    """
+    accounts = _account_options()
+    if not accounts:
+        st.warning("활성 계좌가 없습니다. 먼저 '🏦 계좌 관리'에서 계좌를 추가하세요.")
+        return
+
+    st.subheader("🆕 새 종목 + 초기 보유분 동시 등록")
+    st.caption(
+        "신규 종목을 한 번에 등록 + 초기 보유분 입력. "
+        "이미 등록된 종목이면 통화가 일치할 때만 거래가 추가됩니다."
+    )
+
+    acct_id = st.selectbox(
+        "계좌",
+        options=[a["account_id"] for a in accounts],
+        format_func=lambda i: next(
+            f"{a['name']} ({db.KINDS[a['kind']]})"
+            for a in accounts if a["account_id"] == i
+        ),
+        key="combined_acct",
+    )
+
+    acct = next(a for a in accounts if a["account_id"] == acct_id)
+    fee_rate = float(acct["default_fee_rate"] or 0)
+    if fee_rate > 0:
+        st.caption(
+            f"💡 이 계좌 기본 매매 수수료율 **{fee_rate:.4g}%** "
+            "(초기 보유분은 수수료 입력란이 없으므로 평균단가에 반영해 입력하세요)."
+        )
+
+    with st.form("combined_new_holding_form", clear_on_submit=True):
+        # --- 종목 마스터 정보 ---
+        st.markdown("**1. 종목 정보**")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            ticker = st.text_input(
+                "티커 *",
+                key="combined_ticker",
+                help="자동으로 대문자로 변환되어 저장됩니다 (amzn → AMZN).",
+            )
+        with c2:
+            name = st.text_input("종목명 *", key="combined_name")
+        with c3:
+            currency = st.selectbox(
+                "통화 *",
+                options=["KRW", "USD"],
+                key="combined_currency",
+            )
+        category = st.selectbox(
+            "카테고리 *",
+            options=list(db.CATEGORIES.keys()),
+            format_func=lambda x: db.CATEGORIES[x],
+            key="combined_category",
+        )
+
+        st.divider()
+
+        # --- 초기 보유분 정보 ---
+        st.markdown("**2. 초기 보유분**")
+        c4, c5, c6 = st.columns(3)
+        with c4:
+            quantity = st.number_input(
+                "보유 수량 *", min_value=0.0, step=1.0, format="%.4f",
+                key="combined_qty",
+            )
+        with c5:
+            avg_price = st.number_input(
+                "평균 매입가 (현지통화) *",
+                min_value=0.0, step=1.0, format="%.4f",
+                help="USD 종목이면 1주당 USD 가격을 입력. KRW 종목이면 원화.",
+                key="combined_price",
+            )
+        with c6:
+            base_date_val = st.date_input(
+                "기준일",
+                value=date.today(),
+                key="combined_date",
+                help="단일 BUY 거래의 거래일자로 기록됩니다.",
+            )
+
+        # 환율은 USD일 때만 의미. 폼은 동적 변경이 어려우니 항상 표시하되
+        # 저장 시 currency=USD에서만 사용.
+        c7, c8 = st.columns(2)
+        with c7:
+            avg_fx = st.number_input(
+                "평균 매입 환율 (USDKRW) — USD 종목 필수",
+                min_value=0.0, step=1.0, format="%.2f",
+                key="combined_fx",
+                help="현재 통화가 USD일 때만 사용됩니다. KRW 종목이면 0 또는 무시.",
+            )
+        with c8:
+            note = st.text_input(
+                "메모 (선택)", value="", key="combined_note",
+            )
+
+        submitted = st.form_submit_button(
+            "저장 (종목 등록 + 거래 추가)", type="primary"
+        )
+        if submitted:
+            # 검증
+            if not ticker.strip() or not name.strip():
+                st.error("티커와 종목명은 필수입니다.")
+                return
+            if quantity <= 0 or avg_price <= 0:
+                st.error("수량과 평균단가는 0보다 커야 합니다.")
+                return
+            if currency == "USD" and (avg_fx is None or avg_fx <= 0):
+                st.error("USD 종목은 평균 매입 환율이 필수입니다.")
+                return
+
+            try:
+                created, tx_id = db.add_holding_with_initial_position(
+                    account_id=acct_id,
+                    ticker=ticker,
+                    name=name,
+                    category=category,
+                    currency=currency,
+                    quantity=quantity,
+                    avg_price=avg_price,
+                    avg_fx_rate=avg_fx if currency == "USD" else None,
+                    base_date=base_date_val.isoformat(),
+                    note=note or None,
+                )
+                if created:
+                    st.success(
+                        f"✅ 종목 {ticker.upper()} 등록 + 초기 보유분 거래 #{tx_id} 추가"
+                    )
+                else:
+                    st.success(
+                        f"✅ 기존 종목 {ticker.upper()} 에 거래 #{tx_id} 추가 (마스터는 그대로)"
+                    )
+                st.rerun()
+            except sqlite3.IntegrityError:
+                st.error(
+                    "❌ 같은 (날짜, 계좌, 티커, BUY, 수량, 단가) 조합이 이미 있습니다. "
+                    "이미 등록했거나, 기준일을 다른 날짜로 변경해 주세요."
+                )
+            except ValueError as e:
+                st.error(f"❌ {e}")
+
+
 def _initial_position_form() -> None:
     """초기 보유분 일괄 등록 — 평균단가 + 평균환율로 단일 BUY 거래 생성."""
     accounts = _account_options()
@@ -410,11 +556,16 @@ def render() -> None:
         "분배금은 올해 사업연도 분만 입력하면 충분합니다."
     )
 
-    tab_init, tab_trade, tab_div = st.tabs([
+    tab_combined, tab_init, tab_trade, tab_div = st.tabs([
+        "🆕 새 종목 + 초기 보유분",
         "📦 초기 보유분 (간편)",
         "💱 매매 거래 (개별)",
         "💵 분배금/배당금",
     ])
+    with tab_combined:
+        _combined_new_holding_form()
+        st.divider()
+        _recent_transactions_panel(key_prefix="combined")
     with tab_init:
         _initial_position_form()
         st.divider()

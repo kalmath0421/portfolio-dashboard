@@ -458,3 +458,66 @@ class TestTickerNormalization:
         )
         db.delete_holding("amzn", corp_account)  # 소문자로 삭제 시도
         assert db.get_holding("AMZN", corp_account) is None
+
+
+class TestAddHoldingWithInitialPosition:
+    """종목 마스터 + 초기 보유분 BUY 거래를 한 번에 등록하는 헬퍼."""
+
+    def test_creates_holding_and_transaction(self, corp_account):
+        created, tx_id = db.add_holding_with_initial_position(
+            account_id=corp_account,
+            ticker="AMZN", name="Amazon",
+            category="us_stock", currency="USD",
+            quantity=10, avg_price=200.0, avg_fx_rate=1400.0,
+            base_date="2026-04-27",
+        )
+        assert created is True
+        assert tx_id > 0
+        h = db.get_holding("AMZN", corp_account)
+        assert h is not None and h["currency"] == "USD"
+        rows = db.list_transactions()
+        assert any(r["id"] == tx_id and r["ticker"] == "AMZN" for r in rows)
+
+    def test_existing_holding_skips_master_adds_transaction(self, corp_account):
+        db.add_holding(
+            ticker="AMZN", account_id=corp_account, name="Amazon",
+            category="us_stock", currency="USD",
+        )
+        created, tx_id = db.add_holding_with_initial_position(
+            account_id=corp_account,
+            ticker="AMZN", name="Amazon Inc.",  # 다른 이름이지만 마스터는 안 바꿈
+            category="us_stock", currency="USD",
+            quantity=5, avg_price=210.0, avg_fx_rate=1410.0,
+            base_date="2026-04-27",
+        )
+        assert created is False  # 마스터 새로 안 만듦
+        assert tx_id > 0
+        h = db.get_holding("AMZN", corp_account)
+        # 마스터의 이름은 처음 등록한 'Amazon' 그대로
+        assert h["name"] == "Amazon"
+
+    def test_currency_mismatch_rejected(self, corp_account):
+        db.add_holding(
+            ticker="AMZN", account_id=corp_account, name="Amazon",
+            category="us_stock", currency="USD",
+        )
+        with pytest.raises(ValueError, match="통화"):
+            db.add_holding_with_initial_position(
+                account_id=corp_account,
+                ticker="AMZN", name="Amazon",
+                category="us_stock", currency="KRW",  # 통화 불일치
+                quantity=5, avg_price=300000.0,
+                base_date="2026-04-27",
+            )
+
+    def test_lowercase_ticker_normalized(self, corp_account):
+        created, tx_id = db.add_holding_with_initial_position(
+            account_id=corp_account,
+            ticker="amzn",  # 소문자
+            name="Amazon",
+            category="us_stock", currency="USD",
+            quantity=10, avg_price=200.0, avg_fx_rate=1400.0,
+            base_date="2026-04-27",
+        )
+        assert created is True
+        assert db.get_holding("AMZN", corp_account) is not None
