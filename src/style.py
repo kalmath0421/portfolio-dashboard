@@ -22,6 +22,18 @@ _FONT_LINKS = """
 """
 
 
+# 한국어 locale 환경에서 브라우저가 ASCII 를 fullwidth glyph 로 자동 substitute
+# 하는 것을 차단하기 위해 document lang 을 영어로 설정. translate="no" 까지
+# 추가해 자동 번역도 비활성화. iframe 안에서 실행되어 Streamlit 앱 자체의
+# documentElement 만 영향 받음.
+_BOOT_JS = """
+<script>
+    document.documentElement.lang = 'en';
+    document.documentElement.setAttribute('translate', 'no');
+</script>
+"""
+
+
 _CUSTOM_CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap');
@@ -43,7 +55,10 @@ _CUSTOM_CSS = """
 
 *, *::before, *::after {
     /* InterApp 가 ASCII / Latin 을 잡고, 한글은 OS 시스템 폰트로 자동 fallback.
-       모바일에서 한글 폰트의 fullwidth ASCII glyph 가 사용되는 사고 차단. */
+       한글 폰트의 fullwidth ASCII glyph 가 사용되는 사고 차단을 위해:
+       - 'hwid' 1: half-width forms 강제 (ASCII 가 반각으로 그려지도록)
+       - font-variant-east-asian: half-width: 같은 의미를 CSS3 spec 으로
+       - vendor prefix 둘 다 명시. */
     font-family: 'InterApp',
                  system-ui, -apple-system, BlinkMacSystemFont,
                  "Segoe UI", "Helvetica Neue", Arial,
@@ -53,8 +68,10 @@ _CUSTOM_CSS = """
     letter-spacing: 0 !important;
     word-spacing: 0 !important;
     font-variant-numeric: proportional-nums lining-nums !important;
-    font-feature-settings: 'fwid' 0, 'pwid' 1, 'kern' 1, 'tnum' 0 !important;
-    font-variant-east-asian: normal !important;
+    font-variant-east-asian: half-width !important;
+    -webkit-font-feature-settings: 'hwid' 1, 'pwid' 1, 'kern' 1, 'tnum' 0, 'fwid' 0 !important;
+    -moz-font-feature-settings: 'hwid' 1, 'pwid' 1, 'kern' 1, 'tnum' 0, 'fwid' 0 !important;
+    font-feature-settings: 'hwid' 1, 'pwid' 1, 'kern' 1, 'tnum' 0, 'fwid' 0 !important;
 }
 
 /* 이모지를 컬러로 렌더 (CSS4) */
@@ -348,9 +365,13 @@ hr {
 def apply_theme() -> None:
     """앱 부팅 시 1회 호출 — 전체 화면에 커스텀 CSS 적용.
 
-    Inter Latin woff2 가 base64 로 inline 되어 외부 폰트 다운로드 없이도
-    ASCII glyph 가 정상 너비로 그려진다 (모바일 fullwidth fallback 문제 해결).
+    렌더 순서:
+    1. _BOOT_JS  — document.lang='en' 으로 한글 locale 의 fullwidth ASCII
+       substitute 차단 (이게 가장 결정적인 것일 수도)
+    2. _FONT_LINKS — preconnect 만 (실제 폰트는 base64 inline)
+    3. _CUSTOM_CSS — base64 InterApp + half-width 강제 + 전체 스타일
     """
     css = _CUSTOM_CSS.replace("___INTER_B64___", _INTER_LATIN_B64)
+    st.markdown(_BOOT_JS, unsafe_allow_html=True)
     st.markdown(_FONT_LINKS, unsafe_allow_html=True)
     st.markdown(css, unsafe_allow_html=True)
