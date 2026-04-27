@@ -19,15 +19,30 @@ _CUSTOM_CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined&family=Material+Symbols+Rounded&display=swap');
 
+/* unicode-range 로 ASCII 와 Hangul 의 폰트를 강제 분리.
+   font-family 리스트만으로는 일부 환경(특히 모바일)에서 한글 폰트가 ASCII
+   glyph 로 사용되는 케이스가 있어서, @font-face 에 unicode-range 를 명시해
+   브라우저가 codepoint 별로 다른 폰트 파일을 사용하도록 강제. */
+@font-face {
+    font-family: 'AppFont';
+    src: local('Inter'), local('Helvetica Neue'), local('Arial'), local('SF Pro Text');
+    unicode-range: U+0020-007F, U+00A0-024F, U+2000-206F, U+2070-209F, U+20A0-20CF;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'AppFont';
+    src: local('Pretendard Variable'), local('Pretendard'), local('Apple SD Gothic Neo'), local('Noto Sans KR');
+    unicode-range: U+AC00-D7AF, U+1100-11FF, U+3130-318F, U+A960-A97F;
+    font-display: swap;
+}
+
 html, body, [class*="css"], button, input, textarea, select,
 [data-testid="stSidebar"] *, [data-testid="stMetric"] *,
 h1, h2, h3, h4, h5, h6, p, span, div, label {
-    /* 핵심: Helvetica Neue / Arial 같은 ASCII-전용 system 폰트를
-       'Apple SD Gothic Neo' / 'Noto Sans KR' 같은 한글 폰트보다 앞에 둬야 함.
-       한글 폰트는 ASCII 글리프(fullwidth digit)도 가지고 있어서 fallback
-       chain 에서 ASCII 가 거기로 떨어지면 글자폭이 두 배가 되는 사고가
-       발생함 (실제 사용자 환경에서 21.8px 측정됨). */
-    font-family: 'Pretendard Variable', 'Pretendard',
+    /* 'AppFont' 가 unicode-range 로 ASCII / Hangul 을 알아서 분기.
+       그래도 안 잡히는 글자(이모지 등)는 chain 에서 내려가 fallback. */
+    font-family: 'AppFont',
+                 'Pretendard Variable', 'Pretendard',
                  'Inter',
                  'Helvetica Neue', 'Arial',
                  -apple-system, BlinkMacSystemFont, 'Segoe UI',
@@ -35,6 +50,8 @@ h1, h2, h3, h4, h5, h6, p, span, div, label {
                  'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji',
                  'Segoe UI Symbol', sans-serif !important;
     letter-spacing: -0.01em;
+    font-variant-east-asian: normal !important;
+    font-feature-settings: 'fwid' 0, 'pwid' 1, 'kern' 1 !important;
 }
 
 /* 이모지를 컬러로 렌더 (CSS4) */
