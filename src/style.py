@@ -6,18 +6,23 @@ import streamlit as st
 
 _CUSTOM_CSS = """
 <style>
-@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
 @import url('https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined&family=Material+Symbols+Rounded&display=swap');
 
-html, body, [class*="css"], button, input, textarea, select,
-[data-testid="stSidebar"] *, [data-testid="stMetric"] *,
-h1, h2, h3, h4, h5, h6, p, span, div, label {
-    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI',
-                 'Apple SD Gothic Neo', 'Noto Sans KR',
-                 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji',
-                 'Segoe UI Symbol', sans-serif !important;
-    letter-spacing: -0.01em;
+/* 시스템 폰트만 사용 — Pretendard 의 한글-숫자 폭 불일치를 회피.
+   macOS: SF Pro Display/Text + Apple SD Gothic Neo (한글) — 메트릭 일관.
+   Windows: Segoe UI + Malgun Gothic. 둘 다 숫자 흩어짐 없음. */
+html, body, *, *::before, *::after {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display',
+                 'SF Pro Text', 'Helvetica Neue',
+                 'Apple SD Gothic Neo', 'Segoe UI', 'Malgun Gothic',
+                 system-ui, sans-serif !important;
+    letter-spacing: 0 !important;
+    word-spacing: 0 !important;
+    font-variant-numeric: proportional-nums lining-nums !important;
+    font-feature-settings: 'pnum' 1, 'lnum' 1, 'kern' 1, 'tnum' 0 !important;
+    -webkit-font-smoothing: antialiased !important;
+    text-rendering: optimizeLegibility !important;
 }
 
 /* 이모지를 컬러로 렌더 (CSS4) */
