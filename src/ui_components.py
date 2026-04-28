@@ -24,34 +24,17 @@ import streamlit as st
 # Hangul 음절 + 자모 + 호환 자모 범위. 한자는 별도지만 우리 앱에선 안 씀.
 _HANGUL_RE = re.compile(r'[가-힯ᄀ-ᇿ㄰-㆏]+')
 
-# Latin 전용 인라인 — 라운드 31: Inter 가 진범이라는 가설로 시스템 폰트 우선.
-# SF Pro (Mac/iOS) 와 Segoe UI (Windows) 는 Inter 보다 디지트 metric 이
-# 자연스럽게 좁아서, 본질적으로 흩어져 보일 가능성이 낮음. Inter 는 마지막
-# 폴백 (시스템 폰트 못 잡는 Linux 등용).
-# letter-spacing 도 normal 로 환원 — 시스템 폰트는 본연의 폭이 좁아 negative
-# 트래킹 불필요.
-_LATIN_INLINE = (
-    "font-family: -apple-system, BlinkMacSystemFont,"
-    " 'Segoe UI', 'Helvetica Neue',"
-    " 'Inter', 'Roboto', sans-serif !important;"
-    " font-variant-numeric: proportional-nums lining-nums !important;"
-    " font-feature-settings: 'pnum' 1, 'kern' 1 !important;"
-    " font-synthesis: none !important;"
-    " letter-spacing: normal !important;"
-    " font-variant-east-asian: normal !important;"
-)
-
-# Hangul 전용 — 한글은 Pretendard 가 가장 정돈되어 있으므로 그대로 사용.
-_HANGUL_INLINE = (
-    "font-family: 'Pretendard', 'Apple SD Gothic Neo',"
-    " 'Noto Sans KR', sans-serif !important;"
-    " font-synthesis: none !important;"
-    " letter-spacing: normal !important;"
-)
+# 라운드 32: 인라인 style 이 Streamlit 의 markdown 렌더링 단계에서 stripping
+# 되는 증거 발견 (DevTools Computed 가 글로벌 룰 값 표시 = 인라인 무시됨).
+# 클래스 기반으로 전환. 폰트 룰은 style.py 의 .cm-value .cm-latin 등에 정의
+# (specificity 20, 글로벌 [data-testid] span 의 11 을 이김).
 
 
 def _split_by_script(text: str) -> str:
     """문자열을 Latin / Hangul 단위로 잘라 별도 <span> 으로 wrap.
+
+    Latin span 은 .cm-latin 클래스로, Hangul span 은 .cm-hangul 클래스로
+    마킹. 폰트 적용은 style.py 의 클래스 룰이 담당.
 
     CJK text shaper 가 동일 텍스트 노드 안의 ASCII 를 전각으로 강제 늘리는
     Chrome 의 동작을 회피하기 위해, 노드 경계로 셰이퍼 컨텍스트를 분리한다.
@@ -64,19 +47,16 @@ def _split_by_script(text: str) -> str:
         if m.start() > last_end:
             latin_part = text[last_end:m.start()]
             pieces.append(
-                f'<span style="{_LATIN_INLINE}">'
-                f'{_html.escape(latin_part)}</span>'
+                f'<span class="cm-latin">{_html.escape(latin_part)}</span>'
             )
         pieces.append(
-            f'<span style="{_HANGUL_INLINE}">'
-            f'{_html.escape(m.group())}</span>'
+            f'<span class="cm-hangul">{_html.escape(m.group())}</span>'
         )
         last_end = m.end()
     if last_end < len(text):
         latin_part = text[last_end:]
         pieces.append(
-            f'<span style="{_LATIN_INLINE}">'
-            f'{_html.escape(latin_part)}</span>'
+            f'<span class="cm-latin">{_html.escape(latin_part)}</span>'
         )
     return ''.join(pieces)
 
@@ -119,9 +99,7 @@ def metric(
 
     # 값은 디지트 + "원" 같은 한글이 섞이는 경우가 대부분 → script 별 분리 필수.
     if value is None:
-        value_html = (
-            f'<span style="{_LATIN_INLINE}">—</span>'
-        )
+        value_html = '<span class="cm-latin">—</span>'
     else:
         value_html = _split_by_script(str(value))
 

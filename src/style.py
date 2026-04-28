@@ -225,6 +225,33 @@ span.material-icons,
     margin-top: 0.25rem;
     white-space: nowrap;
 }
+
+/* ---- 라운드 32: 인라인 style 무력화 우회 ----
+   라운드 28~31 동안 ui_components 가 span 에 inline style 을 박았는데
+   DevTools Computed 가 글로벌 룰 값을 표시 (= inline 이 적용 안 됨).
+   Streamlit markdown 의 sanitizer 가 style 속성을 strip 하는 것으로 추정.
+   해법: inline 을 버리고 .cm-latin / .cm-hangul 클래스 + 고 specificity
+   selector 로 재구성. .cm-value .cm-latin = specificity 20, 글로벌 룰의
+   [data-testid] span (11) 을 깔끔히 이김. */
+.cm-value .cm-latin,
+.cm-delta .cm-latin {
+    /* SF Pro (Mac/iOS) / Segoe UI (Windows) 우선. Inter 는 fallback. */
+    font-family: -apple-system, BlinkMacSystemFont,
+                 'Segoe UI', 'Helvetica Neue',
+                 'Inter', 'Roboto', sans-serif !important;
+    font-variant-numeric: proportional-nums lining-nums !important;
+    font-feature-settings: 'pnum' 1, 'kern' 1 !important;
+    font-synthesis: none !important;
+    letter-spacing: normal !important;
+    font-variant-east-asian: normal !important;
+}
+.cm-value .cm-hangul,
+.cm-delta .cm-hangul {
+    font-family: 'Pretendard', 'Apple SD Gothic Neo',
+                 'Noto Sans KR', sans-serif !important;
+    font-synthesis: none !important;
+    letter-spacing: normal !important;
+}
 .cm-up { color: #22C55E; }
 .cm-down { color: #EF4444; }
 .cm-flat { color: #94A3B8; }
