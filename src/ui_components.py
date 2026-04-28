@@ -24,18 +24,20 @@ import streamlit as st
 # Hangul 음절 + 자모 + 호환 자모 범위. 한자는 별도지만 우리 앱에선 안 씀.
 _HANGUL_RE = re.compile(r'[가-힯ᄀ-ᇿ㄰-㆏]+')
 
-# Latin 전용 인라인 — Pretendard 를 fallback chain 에서 완전 제거.
-# 라운드 29 (Gemini 진단): tabular-nums 가 좁은 디지트 (1, 2, 7) 를 가장 넓은
-# 디지트 (0, 8) 폭에 맞춰 padding 을 만들어 "흩어진 것처럼" 보이게 했음.
-# proportional-nums 로 바꿔 각 디지트가 자기 본연의 폭만 차지하게 하고,
-# 디스플레이 사이즈 (1.65rem ≈ 26px) 의 광학 보정으로 letter-spacing -0.02em.
+# Latin 전용 인라인 — 라운드 31: Inter 가 진범이라는 가설로 시스템 폰트 우선.
+# SF Pro (Mac/iOS) 와 Segoe UI (Windows) 는 Inter 보다 디지트 metric 이
+# 자연스럽게 좁아서, 본질적으로 흩어져 보일 가능성이 낮음. Inter 는 마지막
+# 폴백 (시스템 폰트 못 잡는 Linux 등용).
+# letter-spacing 도 normal 로 환원 — 시스템 폰트는 본연의 폭이 좁아 negative
+# 트래킹 불필요.
 _LATIN_INLINE = (
-    "font-family: 'Inter', -apple-system, BlinkMacSystemFont,"
-    " 'Segoe UI', 'Helvetica Neue', sans-serif !important;"
+    "font-family: -apple-system, BlinkMacSystemFont,"
+    " 'Segoe UI', 'Helvetica Neue',"
+    " 'Inter', 'Roboto', sans-serif !important;"
     " font-variant-numeric: proportional-nums lining-nums !important;"
     " font-feature-settings: 'pnum' 1, 'kern' 1 !important;"
     " font-synthesis: none !important;"
-    " letter-spacing: -0.05em !important;"  # 라운드 30: -0.02em 너무 약해 -0.05em 로 강화
+    " letter-spacing: normal !important;"
     " font-variant-east-asian: normal !important;"
 )
 
