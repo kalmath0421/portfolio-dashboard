@@ -35,7 +35,7 @@ _LATIN_INLINE = (
     " font-variant-numeric: proportional-nums lining-nums !important;"
     " font-feature-settings: 'pnum' 1, 'kern' 1 !important;"
     " font-synthesis: none !important;"
-    " letter-spacing: -0.02em !important;"
+    " letter-spacing: -0.05em !important;"  # 라운드 30: -0.02em 너무 약해 -0.05em 로 강화
     " font-variant-east-asian: normal !important;"
 )
 
