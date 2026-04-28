@@ -10,14 +10,26 @@ _CUSTOM_CSS = """
 @import url('https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined&family=Material+Symbols+Rounded&display=swap');
 
-html, body, [class*="css"], button, input, textarea, select,
+/* 글로벌 폰트 룰 — emotion 클래스(st-emotion-cache-XXX) 도 명시 매칭해야
+   modern Streamlit (1.30+) 에서 우리 룰이 적용된다. data-testid 자손도
+   포함해 metric/markdown 같은 컴포넌트 텍스트도 잡음. */
+html, body,
+[class*="css"], [class*="st-emotion"], [class*="emotion-cache"],
+button, input, textarea, select,
 [data-testid="stSidebar"] *, [data-testid="stMetric"] *,
+[data-testid] p, [data-testid] span, [data-testid] div, [data-testid] label,
 h1, h2, h3, h4, h5, h6, p, span, div, label {
     font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI',
                  'Apple SD Gothic Neo', 'Noto Sans KR',
                  'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji',
                  'Segoe UI Symbol', sans-serif !important;
     letter-spacing: -0.01em;
+    /* fullwidth 강제를 명시적으로 끔. proportional widths 강제. */
+    font-feature-settings: 'pwid' 1, 'fwid' 0, 'tnum' 0, 'kern' 1 !important;
+    font-variant-east-asian: normal !important;
+    font-stretch: normal !important;
+    -webkit-text-size-adjust: 100% !important;
+    text-size-adjust: 100% !important;
 }
 
 /* 이모지를 컬러로 렌더 (CSS4) */
@@ -82,8 +94,11 @@ span.material-icons,
     white-space: nowrap !important;
     word-wrap: normal !important;
     direction: ltr !important;
-    -webkit-font-feature-settings: 'liga' !important;
-    font-feature-settings: 'liga' !important;
+    /* 위에서 글로벌로 'pwid'/'fwid' 를 강제했지만 아이콘은 ligature 가 핵심
+       이라 'liga' 1 만 켜야 함. 명시적으로 다시 적용. */
+    -webkit-font-feature-settings: 'liga' 1 !important;
+    font-feature-settings: 'liga' 1 !important;
+    font-variant-east-asian: normal !important;
     -webkit-font-smoothing: antialiased;
     font-variant-emoji: text !important;
 }
