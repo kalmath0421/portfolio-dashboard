@@ -222,6 +222,18 @@ def _account_cards(valuations: list[analytics.HoldingValuation]) -> None:
                     f"원가 {_format_krw(cost)} · 미실현 {_format_krw(pnl)}"
                 )
 
+                # 일일 변동 — prev_close 가 모인 종목 합산. 분모는 어제 평가액
+                # (= 오늘 평가액 − 일일 변동) 으로 % 도 함께 표시.
+                daily = agg.get("daily_change_krw", D(0))
+                base = mv - daily
+                if daily != 0 and base > 0:
+                    daily_pct = (daily / base * D(100)).quantize(D("0.01"))
+                    arrow = "↑" if daily > 0 else "↓"
+                    st.caption(
+                        f"📅 오늘 {arrow} {_format_signed_krw(daily)} "
+                        f"({_format_pct(daily_pct)})"
+                    )
+
                 # USD/KRW 분리
                 usd_mv = agg.get("market_value_usd", D(0))
                 krw_only = agg.get("market_value_krw_only", D(0))

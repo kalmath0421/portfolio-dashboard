@@ -537,6 +537,8 @@ def aggregate_by_account(
             "realized_pnl_krw": D(0),
             "dividend_gross_krw": D(0),
             "dividend_net_krw": D(0),
+            # 일일 변동 (시장 직전 거래일 종가 대비) — prev_close 가 있는 종목만 합산
+            "daily_change_krw": D(0),
             # 통화별 현지 합계
             "market_value_usd": D(0),
             "cost_basis_usd": D(0),
@@ -554,6 +556,8 @@ def aggregate_by_account(
             agg["market_value_krw"] += v.market_value_krw
         if v.unrealized_pnl_krw is not None:
             agg["unrealized_pnl_krw"] += v.unrealized_pnl_krw
+        if v.daily_change_krw is not None:
+            agg["daily_change_krw"] += v.daily_change_krw
         agg["realized_pnl_krw"] += v.realized_pnl_krw
         agg["dividend_gross_krw"] += v.cumulative_dividend_gross_krw
         agg["dividend_net_krw"] += v.cumulative_dividend_net_krw
