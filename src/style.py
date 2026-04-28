@@ -7,7 +7,10 @@ import streamlit as st
 _CUSTOM_CSS = """
 <style>
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Color+Emoji&display=swap');
+/* Inter Variable — 100~900 모든 weight 를 한 파일로 받아 weight 매칭 실패
+   (synthetic bold) 차단. Rendered Fonts 가 'Inter-Regular_Bold' 같은 합성
+   weight 을 만들어 advance 가 망가지는 것을 막음. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Noto+Color+Emoji&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined&family=Material+Symbols+Rounded&display=swap');
 
 /* 글로벌 폰트 룰 — DevTools Rendered Fonts 진단으로 확정된 것:
@@ -31,6 +34,10 @@ h1, h2, h3, h4, h5, h6, p, span, div, label {
     font-feature-settings: 'pwid' 1, 'fwid' 0, 'tnum' 0, 'kern' 1 !important;
     font-variant-east-asian: normal !important;
     font-stretch: normal !important;
+    /* synthetic bold/italic 차단. Inter weight 매칭 실패 시 브라우저가
+       Regular 을 강제로 굵게 만드는 (synthetic-bold) 것을 막음 — advance 가
+       망가져 wide 처럼 보이는 사고 방지. */
+    font-synthesis: none !important;
     -webkit-text-size-adjust: 100% !important;
     text-size-adjust: 100% !important;
 }
