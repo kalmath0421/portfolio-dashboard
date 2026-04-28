@@ -63,22 +63,40 @@ def _combined_new_holding_form() -> None:
         "이미 등록된 종목이면 통화가 일치할 때만 거래가 추가됩니다."
     )
 
-    acct_id = st.selectbox(
-        "계좌",
-        options=[a["account_id"] for a in accounts],
-        format_func=lambda i: next(
-            f"{a['name']} ({db.KINDS[a['kind']]})"
-            for a in accounts if a["account_id"] == i
-        ),
-        key="combined_acct",
-    )
+    # 계좌·카테고리는 폼 밖에서 선택 — 카테고리에 따라 통화가 결정되므로
+    # USD 종목일 때만 환율 필드를 보이게 하기 위해 폼 진입 전에 결정.
+    c_acct, c_cat = st.columns(2)
+    with c_acct:
+        acct_id = st.selectbox(
+            "계좌",
+            options=[a["account_id"] for a in accounts],
+            format_func=lambda i: next(
+                f"{a['name']} ({db.KINDS[a['kind']]})"
+                for a in accounts if a["account_id"] == i
+            ),
+            key="combined_acct",
+        )
+    with c_cat:
+        category = st.selectbox(
+            "카테고리",
+            options=list(db.CATEGORIES.keys()),
+            format_func=lambda x: db.CATEGORIES[x],
+            key="combined_category",
+            help=(
+                "카테고리에 따라 통화는 자동 결정 — 미국주식=USD, "
+                "그 외(국내·국내상장 ETF·MMF성)=KRW. KRW 종목은 환율 입력란이 사라집니다."
+            ),
+        )
+    currency = db.default_currency_for_category(category)
+    st.caption(f"💱 자동 결정된 통화: **{currency}**")
 
     acct = next(a for a in accounts if a["account_id"] == acct_id)
     fee_rate = float(acct["default_fee_rate"] or 0)
     if fee_rate > 0:
         st.caption(
             f"💡 수수료 자동 계산 ON — 이 계좌 기본 매매 수수료율 "
-            f"**{fee_rate:.4g}%**. 저장 시 `수량 × 단가 × {fee_rate:.4g}% × 환율`로 "
+            f"**{fee_rate:.4g}%**. 저장 시 `수량 × 단가 × {fee_rate:.4g}%"
+            f"{' × 환율' if currency == 'USD' else ''}`로 "
             "자동 적용 (수수료 직접 입력 시 덮어씀)."
         )
 
@@ -94,19 +112,6 @@ def _combined_new_holding_form() -> None:
             )
         with c2:
             name = st.text_input("종목명 *", key="combined_name")
-        category = st.selectbox(
-            "카테고리 *",
-            options=list(db.CATEGORIES.keys()),
-            format_func=lambda x: db.CATEGORIES[x],
-            key="combined_category",
-            help=(
-                "카테고리에 따라 통화는 자동 결정됩니다 — "
-                "미국주식=USD, 그 외(국내·국내상장 ETF·MMF성)=KRW"
-            ),
-        )
-        # 통화는 카테고리에서 자동 도출
-        currency = db.default_currency_for_category(category)
-        st.caption(f"💱 자동 결정된 통화: **{currency}**")
 
         st.divider()
 
@@ -120,7 +125,7 @@ def _combined_new_holding_form() -> None:
             )
         with c5:
             avg_price = st.number_input(
-                "평균 매입가 (현지통화) *",
+                f"평균 매입가 ({'USD' if currency == 'USD' else 'KRW'}) *",
                 min_value=0.0, step=1.0, format="%.4f",
                 help="USD 종목이면 1주당 USD 가격을 입력. KRW 종목이면 원화.",
                 key="combined_price",
@@ -133,27 +138,41 @@ def _combined_new_holding_form() -> None:
                 help="단일 BUY 거래의 거래일자로 기록됩니다.",
             )
 
-        # 환율은 USD일 때만 의미. 폼은 동적 변경이 어려우니 항상 표시하되
-        # 저장 시 currency=USD에서만 사용.
-        c7, c8, c9 = st.columns(3)
-        with c7:
-            avg_fx = st.number_input(
-                "평균 매입 환율 (USDKRW) — USD 종목 필수",
-                min_value=0.0, step=1.0, format="%.2f",
-                key="combined_fx",
-                help="현재 통화가 USD일 때만 사용됩니다. KRW 종목이면 0 또는 무시.",
-            )
-        with c8:
-            fee_override = st.number_input(
-                "수수료 직접 입력 (선택, 원화)",
-                min_value=0.0, step=100.0, value=0.0,
-                key="combined_fee",
-                help="0이면 계좌 기본 율로 자동 계산. 다른 값을 직접 넣으면 그 값으로 덮어씀.",
-            )
-        with c9:
-            note = st.text_input(
-                "메모 (선택)", value="", key="combined_note",
-            )
+        # USD 일 때만 환율 입력란을 보여줌 — KRW 종목엔 의미 없음.
+        if currency == "USD":
+            c7, c8, c9 = st.columns(3)
+            with c7:
+                avg_fx = st.number_input(
+                    "평균 매입 환율 (USDKRW) *",
+                    min_value=0.0, step=1.0, format="%.2f",
+                    key="combined_fx",
+                    help="USD 거래의 매입 시점 평균 환율.",
+                )
+            with c8:
+                fee_override = st.number_input(
+                    "수수료 직접 입력 (선택, 원화)",
+                    min_value=0.0, step=100.0, value=0.0,
+                    key="combined_fee",
+                    help="0이면 계좌 기본 율로 자동 계산. 다른 값을 직접 넣으면 그 값으로 덮어씀.",
+                )
+            with c9:
+                note = st.text_input(
+                    "메모 (선택)", value="", key="combined_note",
+                )
+        else:
+            avg_fx = None
+            c8, c9 = st.columns(2)
+            with c8:
+                fee_override = st.number_input(
+                    "수수료 직접 입력 (선택, 원화)",
+                    min_value=0.0, step=100.0, value=0.0,
+                    key="combined_fee",
+                    help="0이면 계좌 기본 율로 자동 계산. 다른 값을 직접 넣으면 그 값으로 덮어씀.",
+                )
+            with c9:
+                note = st.text_input(
+                    "메모 (선택)", value="", key="combined_note",
+                )
 
         submitted = st.form_submit_button(
             "저장 (종목 등록 + 거래 추가)", type="primary"
