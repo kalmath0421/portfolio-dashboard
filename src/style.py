@@ -234,24 +234,27 @@ span.material-icons,
    [data-testid] span (11) 을 깔끔히 이김. */
 .cm-value .cm-latin,
 .cm-delta .cm-latin {
-    /* 라운드 34: Roboto Condensed 를 1순위로 — 본질적으로 narrow 한 web font.
-       SF Pro / 시스템 폰트가 모바일에서 wide 로 보이는 사고 회피. */
+    /* 라운드 34: Roboto Condensed 1순위. */
     font-family: 'Roboto Condensed',
                  -apple-system, BlinkMacSystemFont,
                  'Segoe UI', 'Helvetica Neue',
                  'Inter', 'Roboto', sans-serif !important;
     font-variant-numeric: proportional-nums lining-nums !important;
-    /* fwid 0 명시 — CJK 폰트가 lang=ko 환경에서 ASCII 를 fullwidth (전각) 로
-       강제 늘리는 사고 차단. pnum 1 만으로는 fwid 가 자동 꺼지지 않음. */
     font-feature-settings: 'pwid' 1, 'fwid' 0, 'pnum' 1, 'tnum' 0,
                            'kern' 1, 'liga' 1 !important;
     font-synthesis: none !important;
-    /* 디스플레이 사이즈 광학 보정. */
-    letter-spacing: -0.03em !important;
+    letter-spacing: -0.05em !important;
     font-variant-east-asian: normal !important;
     font-stretch: normal !important;
     font-kerning: normal !important;
     text-rendering: optimizeLegibility !important;
+    /* 라운드 35 (BRUTE FORCE): 폰트/feature 다 적용했는데도 모바일이 못봐줄
+       정도로 wide 라면 글리프 자체의 폭이 문제. transform 으로 렌더링 단계에서
+       가로 15% 압축 — 폰트 metric 무관하게 시각 폭 강제 단축.
+       inline-block 필요 (transform 은 inline element 에 적용 안 됨). */
+    display: inline-block !important;
+    transform: scaleX(0.85);
+    transform-origin: left center;
 }
 .cm-value .cm-hangul,
 .cm-delta .cm-hangul {
