@@ -25,15 +25,17 @@ import streamlit as st
 _HANGUL_RE = re.compile(r'[가-힯ᄀ-ᇿ㄰-㆏]+')
 
 # Latin 전용 인라인 — Pretendard 를 fallback chain 에서 완전 제거.
-# Inter 가 안 잡히면 시스템 sans (SF Pro / Segoe UI) 로 폴백, 둘 다 디지트
-# 폭이 정상이라 Pretendard 의 wide ASCII 가 그려질 여지가 0%.
+# 라운드 29 (Gemini 진단): tabular-nums 가 좁은 디지트 (1, 2, 7) 를 가장 넓은
+# 디지트 (0, 8) 폭에 맞춰 padding 을 만들어 "흩어진 것처럼" 보이게 했음.
+# proportional-nums 로 바꿔 각 디지트가 자기 본연의 폭만 차지하게 하고,
+# 디스플레이 사이즈 (1.65rem ≈ 26px) 의 광학 보정으로 letter-spacing -0.02em.
 _LATIN_INLINE = (
     "font-family: 'Inter', -apple-system, BlinkMacSystemFont,"
     " 'Segoe UI', 'Helvetica Neue', sans-serif !important;"
-    " font-variant-numeric: tabular-nums lining-nums !important;"
-    " font-feature-settings: 'tnum' 1, 'pwid' 1, 'fwid' 0, 'kern' 1 !important;"
+    " font-variant-numeric: proportional-nums lining-nums !important;"
+    " font-feature-settings: 'pnum' 1, 'kern' 1 !important;"
     " font-synthesis: none !important;"
-    " letter-spacing: normal !important;"
+    " letter-spacing: -0.02em !important;"
     " font-variant-east-asian: normal !important;"
 )
 
