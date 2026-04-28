@@ -242,8 +242,12 @@ span.material-icons,
     font-variant-numeric: proportional-nums lining-nums !important;
     font-feature-settings: 'pnum' 1, 'kern' 1 !important;
     font-synthesis: none !important;
-    letter-spacing: normal !important;
+    /* 라운드 33: SF Pro 가 그려져도 26px 디스플레이 사이즈에선 디지트 advance
+       가 visible. 광학 보정 위해 -0.05em 트래킹 (Gemini 권장의 강한 끝). */
+    letter-spacing: -0.05em !important;
     font-variant-east-asian: normal !important;
+    /* 한 번 더 — 모든 폰트가 "wide" 변종이 아닌 정상 너비로 그려지게 강제. */
+    font-stretch: normal !important;
 }
 .cm-value .cm-hangul,
 .cm-delta .cm-hangul {
