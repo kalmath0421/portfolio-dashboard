@@ -11,7 +11,6 @@ from src.views import (
     accounts_admin,
     charts,
     corp_etf,
-    holdings_admin,
     stocks,
     summary,
     tax_view,
@@ -33,14 +32,14 @@ def _build_page_registry() -> dict:
     if profile_config.is_corp():
         registry["💰 세금 추적"] = tax_view.render
     registry["📉 차트"] = charts.render
-    registry["📝 거래 입력"] = transactions.render
+    # 종목 관리 + 거래 입력은 한 페이지로 통합 (매수하면 보유 종목이 아래에 자동 등록).
+    registry["📦 종목 + 거래"] = transactions.render
     registry["🏦 계좌 관리"] = accounts_admin.render
-    registry["⚙️ 종목 관리"] = holdings_admin.render
     return registry
 
 
 # 관리·입력성 화면은 공통 헤더 생략
-PAGES_WITHOUT_HEADER = {"🏦 계좌 관리", "⚙️ 종목 관리", "📝 거래 입력"}
+PAGES_WITHOUT_HEADER = {"🏦 계좌 관리", "📦 종목 + 거래"}
 
 
 def _bootstrap() -> None:

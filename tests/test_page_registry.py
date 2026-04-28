@@ -37,10 +37,13 @@ class TestBuildPageRegistry:
         keys = list(registry.keys())
         assert "🏢 법인 계좌" in keys
         assert "💰 세금 추적" in keys
-        # 핵심 페이지는 모두 포함
-        for required in ("📊 요약", "📈 개인 계좌", "📉 차트", "📝 거래 입력",
-                         "🏦 계좌 관리", "⚙️ 종목 관리"):
+        # 핵심 페이지는 모두 포함 (종목 관리 + 거래 입력은 한 페이지로 통합).
+        for required in ("📊 요약", "📈 개인 계좌", "📉 차트", "📦 종목 + 거래",
+                         "🏦 계좌 관리"):
             assert required in keys
+        # 통합 후 별도 메뉴는 제거됨.
+        assert "⚙️ 종목 관리" not in keys
+        assert "📝 거래 입력" not in keys
 
     def test_personal_hides_corporate_and_tax(self, reload_app):
         app = reload_app({"DASHBOARD_PROFILE": "personal"})
@@ -49,9 +52,11 @@ class TestBuildPageRegistry:
         assert "🏢 법인 계좌" not in keys
         assert "💰 세금 추적" not in keys
         # 그 외 핵심 페이지는 그대로 노출
-        for required in ("📊 요약", "📈 개인 계좌", "📉 차트", "📝 거래 입력",
-                         "🏦 계좌 관리", "⚙️ 종목 관리"):
+        for required in ("📊 요약", "📈 개인 계좌", "📉 차트", "📦 종목 + 거래",
+                         "🏦 계좌 관리"):
             assert required in keys
+        assert "⚙️ 종목 관리" not in keys
+        assert "📝 거래 입력" not in keys
 
     def test_personal_keeps_summary_first(self, reload_app):
         app = reload_app({"DASHBOARD_PROFILE": "personal"})

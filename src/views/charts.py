@@ -107,7 +107,7 @@ def _value_history_chart(period: str) -> None:
 def _dividend_monthly_chart() -> None:
     monthly = analytics.dividend_monthly()
     if not monthly:
-        st.info("💡 분배금 데이터가 없습니다. '📝 거래 입력' → 분배금 탭에서 입력하세요.")
+        st.info("💡 분배금 데이터가 없습니다. '📦 종목 + 거래' → 분배금 탭에서 입력하세요.")
         return
 
     df = pd.DataFrame([

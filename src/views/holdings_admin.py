@@ -298,7 +298,11 @@ def render() -> None:
         "비활성화된 종목도 과거 거래 기록은 보존됩니다. "
         "동일 티커를 여러 계좌에 등록할 수 있습니다."
     )
+    render_inline()
 
+
+def render_inline() -> None:
+    """헤더 없이 종목 목록 + 추가/편집 panel 만 렌더 — 다른 페이지 하단 임베드용."""
     accounts = db.list_accounts(active_only=True)
 
     if not accounts:

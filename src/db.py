@@ -703,7 +703,7 @@ def add_transaction(
         ).fetchone():
             raise ValueError(
                 f"종목 마스터에 없는 티커입니다: {ticker} (계좌 {account_id}). "
-                f"먼저 '종목 관리'에서 등록하세요."
+                f"먼저 '📦 종목 + 거래'의 '🆕 새 종목 첫 매수' 탭에서 등록하세요."
             )
         cur = conn.execute(
             """
@@ -729,6 +729,7 @@ def add_holding_with_initial_position(
     avg_fx_rate: float | None = None,
     base_date: str | None = None,
     note: str | None = None,
+    fee: float = 0,
 ) -> tuple[bool, int]:
     """종목 마스터 + 초기 보유분(BUY 거래) 한 번에 등록.
 
@@ -776,6 +777,7 @@ def add_holding_with_initial_position(
         avg_fx_rate=avg_fx_rate,
         base_date=base_date,
         note=note,
+        fee=fee,
     )
     return holding_created, tx_id
 
@@ -788,6 +790,7 @@ def add_initial_position(
     avg_fx_rate: float | None = None,
     base_date: str | None = None,
     note: str | None = None,
+    fee: float = 0,
 ) -> int:
     """초기 보유분(누적 평균단가)을 단일 BUY 거래로 등록.
 
@@ -804,7 +807,7 @@ def add_initial_position(
     if holding is None:
         raise ValueError(
             f"종목 마스터에 없습니다: {ticker} (계좌 {account_id}). "
-            "먼저 '종목 관리'에서 등록하세요."
+            "먼저 '📦 종목 + 거래'의 '🆕 새 종목 첫 매수' 탭에서 등록하세요."
         )
     currency = holding["currency"]
 
@@ -817,7 +820,7 @@ def add_initial_position(
         price=avg_price,
         currency=currency,
         fx_rate=avg_fx_rate if currency == "USD" else None,
-        fee=0,
+        fee=fee,
         note=note or "초기 보유분 (평균단가 기준)",
     )
 
