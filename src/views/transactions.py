@@ -117,17 +117,21 @@ def _combined_new_holding_form() -> None:
 
         # --- 초기 보유분 정보 ---
         st.markdown("**2. 초기 보유분**")
+        # 통화별 단가 자릿수 — KRW 정수 / USD 2자리.
+        price_format = "%d" if currency == "KRW" else "%.2f"
+        price_step = 1.0 if currency == "KRW" else 0.01
+
         c4, c5, c6 = st.columns(3)
         with c4:
             quantity = st.number_input(
-                "보유 수량 *", min_value=0.0, step=1.0, format="%.4f",
+                "보유 수량 *", min_value=0.0, step=1.0, format="%d",
                 key="combined_qty",
+                help="소수점 매매한 USD 종목이면 직접 입력 (보통 정수).",
             )
         with c5:
             avg_price = st.number_input(
-                f"평균 매입가 ({'USD' if currency == 'USD' else 'KRW'}) *",
-                min_value=0.0, step=1.0, format="%.4f",
-                help="USD 종목이면 1주당 USD 가격을 입력. KRW 종목이면 원화.",
+                f"평균 매입가 ({currency}) *",
+                min_value=0.0, step=price_step, format=price_format,
                 key="combined_price",
             )
         with c6:
@@ -151,7 +155,7 @@ def _combined_new_holding_form() -> None:
             with c8:
                 fee_override = st.number_input(
                     "수수료 직접 입력 (선택, 원화)",
-                    min_value=0.0, step=100.0, value=0.0,
+                    min_value=0.0, step=100.0, value=0.0, format="%d",
                     key="combined_fee",
                     help="0이면 계좌 기본 율로 자동 계산. 다른 값을 직접 넣으면 그 값으로 덮어씀.",
                 )
@@ -165,7 +169,7 @@ def _combined_new_holding_form() -> None:
             with c8:
                 fee_override = st.number_input(
                     "수수료 직접 입력 (선택, 원화)",
-                    min_value=0.0, step=100.0, value=0.0,
+                    min_value=0.0, step=100.0, value=0.0, format="%d",
                     key="combined_fee",
                     help="0이면 계좌 기본 율로 자동 계산. 다른 값을 직접 넣으면 그 값으로 덮어씀.",
                 )
@@ -269,14 +273,27 @@ def _trade_form() -> None:
         )
         return
 
+    # 종목 선택을 폼 밖으로 — 통화에 따라 number_input 자릿수를 다르게 주려면
+    # 폼 진입 전에 currency 가 결정되어야 함 (form 안 widget 은 동적 재렌더 X).
+    ticker = st.selectbox(
+        "종목",
+        options=[h["ticker"] for h in holdings],
+        format_func=lambda t: next(
+            f"{t} — {h['name']}" for h in holdings if h["ticker"] == t
+        ),
+        key="tx_ticker",
+    )
+    ticker_currency = next(h["currency"] for h in holdings if h["ticker"] == ticker)
+
     # 계좌 기본 수수료율 — 매번 거래 입력 시 fee 자동 계산에 사용.
     acct = next(a for a in accounts if a["account_id"] == acct_id)
     fee_rate = float(acct["default_fee_rate"] or 0)
     if fee_rate > 0:
         st.caption(
             f"💡 수수료 자동 계산 ON — 이 계좌 기본 매매 수수료율 "
-            f"**{fee_rate:.4g}%**. 거래 저장 시 `수량 × 단가 × {fee_rate:.4g}% × 환율`로 "
-            "자동 적용. 율을 바꾸려면 '🏦 계좌 관리' 에서 변경."
+            f"**{fee_rate:.4g}%**. 거래 저장 시 `수량 × 단가 × {fee_rate:.4g}%"
+            f"{' × 환율' if ticker_currency == 'USD' else ''}`로 자동 적용 "
+            "(수수료 직접 입력 시 덮어씀)."
         )
     else:
         st.caption(
@@ -284,46 +301,44 @@ def _trade_form() -> None:
             "설정하면 거래마다 자동 계산됩니다."
         )
 
+    # 통화별 number_input 포맷 — KRW 정수 / USD 2자리.
+    price_format = "%d" if ticker_currency == "KRW" else "%.2f"
+    price_step = 1.0 if ticker_currency == "KRW" else 0.01
+
     with st.form("trade_form", clear_on_submit=True):
         c1, c2, c3 = st.columns(3)
         with c1:
             trade_date_val = st.date_input("거래일", value=date.today())
-            ticker = st.selectbox(
-                "종목",
-                options=[h["ticker"] for h in holdings],
-                format_func=lambda t: next(
-                    f"{t} — {h['name']}" for h in holdings if h["ticker"] == t
-                ),
-            )
-        with c2:
             side = st.radio(
                 "구분", options=["BUY", "SELL"],
                 format_func=lambda s: "매수" if s == "BUY" else "매도",
                 horizontal=True,
             )
+        with c2:
             quantity = st.number_input(
-                "수량", min_value=0.0, step=1.0, format="%.4f"
+                "수량", min_value=0.0, step=1.0, format="%d",
+                help="소수점 매매를 한 경우만 직접 수정 (보통 정수).",
+            )
+            price = st.number_input(
+                f"단가 ({ticker_currency})",
+                min_value=0.0, step=price_step, format=price_format,
             )
         with c3:
-            price = st.number_input(
-                "단가 (현지통화)", min_value=0.0, step=1.0, format="%.4f"
-            )
+            if ticker_currency == "USD":
+                suggested = _suggested_fx_rate(trade_date_val)
+                fx_rate = st.number_input(
+                    "거래 시점 환율 (USDKRW) *",
+                    min_value=0.0, step=1.0,
+                    value=float(suggested) if suggested else 0.0,
+                    format="%.2f",
+                    help="해당 일자의 매매기준율 등을 입력. 시세 갱신 후 자동 추천값이 채워짐.",
+                )
+            else:
+                fx_rate = None
             fee_override = st.number_input(
                 "수수료 직접 입력 (선택, 원화)",
-                min_value=0.0, step=100.0, value=0.0,
+                min_value=0.0, step=100.0, value=0.0, format="%d",
                 help="0이면 계좌 기본 율로 자동 계산. 다른 값을 직접 넣으면 그 값으로 덮어씀.",
-            )
-
-        # 통화 자동 — 종목 마스터에서
-        ticker_currency = next(h["currency"] for h in holdings if h["ticker"] == ticker)
-
-        fx_rate = None
-        if ticker_currency == "USD":
-            suggested = _suggested_fx_rate(trade_date_val)
-            fx_rate = st.number_input(
-                "거래 시점 환율 (USDKRW) — USD 종목 필수",
-                min_value=0.0, step=1.0, value=float(suggested) if suggested else 0.0,
-                help="해당 일자의 매매기준율 등을 입력. 시세 갱신 후 자동 추천값이 채워짐.",
             )
 
         note = st.text_input("메모 (선택)")

@@ -85,7 +85,15 @@ small {
 
 /* ---- Material Symbols 아이콘 ---- */
 /* 글로벌 font-family !important 룰이 아이콘 폰트를 덮어버려 ligature 텍스트
-   (예: keyboard_double_arrow_right) 가 그대로 노출되는 걸 방지. */
+   (예: keyboard_double_arrow_right, arrow_left) 가 그대로 노출되는 걸 방지.
+   ⚠️ specificity 주의: 글로벌 룰의 `[data-testid] span` 은 specificity 11
+   (속성+요소). `[data-testid="stIconMaterial"]` 단독은 10 이라 글로벌이 이김 →
+   아이콘이 글로벌 Inter 폰트로 떨어져 ligature 가 풀리는 사고. 따라서 모든 아이콘
+   selector 에 element 또는 추가 selector 를 붙여 specificity ≥ 11 로 끌어올림. */
+body [data-testid="stIconMaterial"],
+span[data-testid="stIconMaterial"],
+[data-testid="stSidebarCollapseButton"] span,
+[data-testid="stExpandSidebarButton"] span,
 [data-testid="stIconMaterial"],
 span.material-symbols-rounded,
 span.material-symbols-outlined,
