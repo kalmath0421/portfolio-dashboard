@@ -89,17 +89,36 @@ def _valued_holdings_dataframe(
         else:
             price_status = "🟢"
 
+        # 통화에 따라 단가/현재가 자릿수 다르게 — KRW 정수, USD 2자리.
+        # 한 컬럼에 통화가 섞이므로 텍스트로 미리 포맷.
+        def _fmt_local(value: float | None, currency: str) -> str:
+            if value is None:
+                return "—"
+            if currency == "KRW":
+                return f"{int(round(value)):,}"
+            return f"{value:,.2f}"
+
+        # 보유수량: 정수면 정수로, 소수점 매매면 자리수 살림.
+        qty_value = float(state.quantity) if state.quantity > 0 else 0.0
+        if qty_value == int(qty_value):
+            qty_display = f"{int(qty_value):,}"
+        else:
+            qty_display = f"{qty_value:,.4f}".rstrip("0").rstrip(".")
+
         rows.append({
             "티커": h["ticker"],
             "종목명": h["name"],
             "계좌": h["account_name"],
             "통화": h["currency"],
-            "보유수량": float(state.quantity) if state.quantity > 0 else 0.0,
+            "보유수량": qty_display,
             "평균단가": (
-                float(state.avg_cost_local)
-                if state.quantity > 0 else None
+                _fmt_local(float(state.avg_cost_local), h["currency"])
+                if state.quantity > 0 else "—"
             ),
-            "현재가": float(cur_price) if cur_price is not None else None,
+            "현재가": _fmt_local(
+                float(cur_price) if cur_price is not None else None,
+                h["currency"],
+            ),
             "평가금액(₩)": (
                 float(v.market_value_krw)
                 if v.market_value_krw is not None else None
@@ -471,9 +490,10 @@ def render_inline() -> None:
                 "종목명": st.column_config.TextColumn("종목명"),
                 "계좌": st.column_config.TextColumn("계좌"),
                 "통화": st.column_config.TextColumn("통화", width="small"),
-                "보유수량": st.column_config.NumberColumn("보유수량", format="%.4f"),
-                "평균단가": st.column_config.NumberColumn("평균단가", format="%.2f"),
-                "현재가": st.column_config.NumberColumn("현재가", format="%.2f"),
+                # 통화별 자릿수 미리 포맷되어 들어옴 (KRW 정수, USD 2자리).
+                "보유수량": st.column_config.TextColumn("보유수량", width="small"),
+                "평균단가": st.column_config.TextColumn("평균단가"),
+                "현재가": st.column_config.TextColumn("현재가"),
                 "평가금액(₩)": st.column_config.NumberColumn("평가금액(₩)", format="%,.0f"),
                 "미실현손익(₩)": st.column_config.NumberColumn("미실현손익(₩)", format="%,.0f"),
                 "수익률(%)": st.column_config.NumberColumn("수익률(%)", format="%+.2f"),
