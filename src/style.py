@@ -7,19 +7,22 @@ import streamlit as st
 _CUSTOM_CSS = """
 <style>
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-@import url('https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Color+Emoji&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined&family=Material+Symbols+Rounded&display=swap');
 
-/* 글로벌 폰트 룰 — emotion 클래스(st-emotion-cache-XXX) 도 명시 매칭해야
-   modern Streamlit (1.30+) 에서 우리 룰이 적용된다. data-testid 자손도
-   포함해 metric/markdown 같은 컴포넌트 텍스트도 잡음. */
+/* 글로벌 폰트 룰 — DevTools Rendered Fonts 진단으로 확정된 것:
+   Pretendard-Bold 의 ASCII glyph 가 wide 하게 디자인되어 있어 숫자가 흩어진
+   것처럼 보임. font-family 순서를 'Inter' 우선으로 바꿔 ASCII/Latin 은 Inter
+   로, 한글은 Inter 에 글리프 없으니 자동으로 Pretendard 로 fallback.
+   emotion 클래스 보강도 유지해야 modern Streamlit 에서 룰이 적용됨. */
 html, body,
 [class*="css"], [class*="st-emotion"], [class*="emotion-cache"],
 button, input, textarea, select,
 [data-testid="stSidebar"] *, [data-testid="stMetric"] *,
 [data-testid] p, [data-testid] span, [data-testid] div, [data-testid] label,
 h1, h2, h3, h4, h5, h6, p, span, div, label {
-    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    font-family: 'Inter', 'Pretendard',
+                 -apple-system, BlinkMacSystemFont, 'Segoe UI',
                  'Apple SD Gothic Neo', 'Noto Sans KR',
                  'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji',
                  'Segoe UI Symbol', sans-serif !important;
