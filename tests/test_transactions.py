@@ -234,6 +234,53 @@ class TestInitialPosition:
         assert s.avg_cost_local == 19000
 
 
+class TestComputeAutoFee:
+    """compute_auto_fee 의 산식 검증 — UI 가 의존하는 핵심 로직."""
+
+    def test_krw_basic(self):
+        # 100주 × 18000원 × 0.015% = 270원
+        fee = db.compute_auto_fee(
+            quantity=100, price=18000, fee_rate_pct=0.015, currency="KRW",
+        )
+        assert fee == pytest.approx(270.0)
+
+    def test_usd_with_fx(self):
+        # 10주 × 130 USD × 0.25% × 1350원 = 4387.5원
+        fee = db.compute_auto_fee(
+            quantity=10, price=130, fee_rate_pct=0.25, currency="USD",
+            fx_rate=1350,
+        )
+        assert fee == pytest.approx(10 * 130 * 0.0025 * 1350)
+
+    def test_zero_rate_returns_zero(self):
+        # 율이 0 이면 자동 OFF
+        assert db.compute_auto_fee(
+            quantity=100, price=18000, fee_rate_pct=0, currency="KRW",
+        ) == 0.0
+
+    def test_negative_rate_returns_zero(self):
+        # 비정상 입력 방어
+        assert db.compute_auto_fee(
+            quantity=100, price=18000, fee_rate_pct=-1, currency="KRW",
+        ) == 0.0
+
+    def test_zero_quantity_returns_zero(self):
+        assert db.compute_auto_fee(
+            quantity=0, price=18000, fee_rate_pct=0.015, currency="KRW",
+        ) == 0.0
+
+    def test_usd_without_fx_returns_zero(self):
+        # USD 인데 환율이 없으면 잘못된 원가가 박히지 않도록 0
+        assert db.compute_auto_fee(
+            quantity=10, price=130, fee_rate_pct=0.25, currency="USD",
+            fx_rate=None,
+        ) == 0.0
+        assert db.compute_auto_fee(
+            quantity=10, price=130, fee_rate_pct=0.25, currency="USD",
+            fx_rate=0,
+        ) == 0.0
+
+
 class TestIntegrationWithAnalytics:
     """수동 입력한 거래가 analytics.replay_positions로 반영되는지 검증."""
 

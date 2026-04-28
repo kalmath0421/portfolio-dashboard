@@ -641,6 +641,36 @@ def add_default_holdings_to_account(account_id: int) -> int:
 
 # --- 거래 내역 CRUD ---
 
+def compute_auto_fee(
+    quantity: float,
+    price: float,
+    fee_rate_pct: float,
+    currency: str,
+    fx_rate: float | None = None,
+) -> float:
+    """매매 거래의 자동 수수료(원화) 계산.
+
+    공식: ``quantity × price × (fee_rate_pct / 100) × (USD면 fx_rate 곱)``.
+
+    - ``fee_rate_pct`` 는 % 단위 (예: 0.015 = 0.015%).
+    - 음수·NaN 등 비정상값은 0 으로 보정 (UI 에서 0 입력은 "자동 OFF" 의미).
+    - USD 거래인데 ``fx_rate`` 가 없거나 ≤ 0 이면 0 반환 — 환율 미입력 상태로
+      수수료를 추정해 버리면 잘못된 원가가 박히므로 차라리 0 이 안전.
+
+    Returns: 원화 환산 수수료 (>= 0).
+    """
+    if fee_rate_pct is None or fee_rate_pct <= 0:
+        return 0.0
+    if quantity <= 0 or price <= 0:
+        return 0.0
+    base = float(quantity) * float(price) * (float(fee_rate_pct) / 100.0)
+    if currency == "USD":
+        if fx_rate is None or fx_rate <= 0:
+            return 0.0
+        return base * float(fx_rate)
+    return base
+
+
 def add_transaction(
     trade_date: str,
     account_id: int,

@@ -329,15 +329,19 @@ def _trade_form() -> None:
         )
         return
 
-    # 계좌 기본 수수료율 캡션 (작은 글씨로 인터페이스에 표시)
+    # 계좌 기본 수수료율 — 매번 거래 입력 시 fee 자동 계산에 사용.
     acct = next(a for a in accounts if a["account_id"] == acct_id)
     fee_rate = float(acct["default_fee_rate"] or 0)
     if fee_rate > 0:
         st.caption(
-            f"💡 이 계좌 기본 매매 수수료율 **{fee_rate:.4g}%** — "
-            "추천 수수료 = `수량 × 단가 × 율 ÷ 100` "
-            "(USD 종목은 추가로 × 환율). 입력값 덮어쓰기 가능. "
-            "'🏦 계좌 관리'에서 율 변경 가능."
+            f"💡 수수료 자동 계산 ON — 이 계좌 기본 매매 수수료율 "
+            f"**{fee_rate:.4g}%**. 거래 저장 시 `수량 × 단가 × {fee_rate:.4g}% × 환율`로 "
+            "자동 적용. 율을 바꾸려면 '🏦 계좌 관리' 에서 변경."
+        )
+    else:
+        st.caption(
+            "💡 이 계좌 수수료율이 0% 입니다. '🏦 계좌 관리' 에서 기본 율을 "
+            "설정하면 거래마다 자동 계산됩니다."
         )
 
     with st.form("trade_form", clear_on_submit=True):
@@ -364,7 +368,11 @@ def _trade_form() -> None:
             price = st.number_input(
                 "단가 (현지통화)", min_value=0.0, step=1.0, format="%.4f"
             )
-            fee = st.number_input("수수료 (원화)", min_value=0.0, step=100.0)
+            fee_override = st.number_input(
+                "수수료 직접 입력 (선택, 원화)",
+                min_value=0.0, step=100.0, value=0.0,
+                help="0이면 계좌 기본 율로 자동 계산. 다른 값을 직접 넣으면 그 값으로 덮어씀.",
+            )
 
         # 통화 자동 — 종목 마스터에서
         ticker_currency = next(h["currency"] for h in holdings if h["ticker"] == ticker)
@@ -383,6 +391,24 @@ def _trade_form() -> None:
 
         submitted = st.form_submit_button("저장", type="primary")
         if submitted:
+            # 수수료 결정: 사용자가 직접 입력한 값(>0)이 있으면 그대로,
+            # 0 이면 계좌 기본 율로 자동 계산.
+            if fee_override > 0:
+                final_fee = float(fee_override)
+                fee_msg = f"수수료 {final_fee:,.0f}원 (직접 입력)"
+            else:
+                final_fee = db.compute_auto_fee(
+                    quantity=quantity,
+                    price=price,
+                    fee_rate_pct=fee_rate,
+                    currency=ticker_currency,
+                    fx_rate=fx_rate,
+                )
+                fee_msg = (
+                    f"수수료 {final_fee:,.0f}원 (자동: {fee_rate:.4g}%)"
+                    if final_fee > 0
+                    else "수수료 0원 (계좌 기본 율 0% 또는 USD 환율 미입력)"
+                )
             try:
                 tx_id = db.add_transaction(
                     trade_date=trade_date_val.isoformat(),
@@ -393,10 +419,10 @@ def _trade_form() -> None:
                     price=price,
                     currency=ticker_currency,
                     fx_rate=fx_rate if ticker_currency == "USD" else None,
-                    fee=fee,
+                    fee=final_fee,
                     note=note or None,
                 )
-                st.success(f"✅ 거래 등록 (#{tx_id})")
+                st.success(f"✅ 거래 등록 (#{tx_id}) — {fee_msg}")
                 st.rerun()
             except sqlite3.IntegrityError:
                 st.error(
