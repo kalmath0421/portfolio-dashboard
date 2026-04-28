@@ -6,7 +6,7 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 
-from src import db, profile_config
+from src import analytics, db, prices, profile_config
 
 
 CATEGORY_OPTIONS = list(db.CATEGORIES.keys())
@@ -29,6 +29,102 @@ def _holdings_dataframe(
     df["is_active"] = df["is_active"].map({1: "✅ 활성", 0: "⏸ 비활성"})
     return df[["ticker", "name", "account_name", "category", "currency",
                "is_active", "added_at", "note"]]
+
+
+def _valued_holdings_dataframe(
+    active_only: bool,
+    account_id: int | None,
+    show_zero_qty: bool,
+) -> tuple[pd.DataFrame, int]:
+    """보유 종목 + 라이브 가치(보유수량/현재가/평가금액/수익률) 결합 표.
+
+    Args:
+        active_only: 비활성 종목 제외 여부
+        account_id: 특정 계좌 필터 (None=전체)
+        show_zero_qty: 보유수량 0 종목도 포함할지 (False면 매도 완료 종목 숨김)
+
+    Returns: (DataFrame, 0주로 인해 숨겨진 row 개수)
+    """
+    holdings = db.list_holdings(active_only=active_only, account_id=account_id)
+    if not holdings:
+        return pd.DataFrame(), 0
+
+    states = analytics.load_states_from_db(account_id=account_id)
+
+    # summary 와 같은 캐시 키 — 한 세션 내에서 재사용해 라이브 호출 비용 절감
+    if not st.session_state.get("price_cache"):
+        st.session_state["price_cache"] = prices.load_cached_prices(holdings)
+    if st.session_state.get("fx_cache") is None:
+        st.session_state["fx_cache"] = prices.load_cached_fx()
+    price_cache = st.session_state["price_cache"]
+    fx_cache = st.session_state["fx_cache"]
+
+    rows: list[dict] = []
+    hidden_zero = 0
+    for h in holdings:
+        key = (h["account_id"], h["ticker"])
+        state = states.get(key) or analytics.PositionState(
+            ticker=h["ticker"],
+            account_id=h["account_id"],
+            currency=h["currency"],
+        )
+
+        # 매도로 0주가 된 종목은 기본적으로 숨김 — 마스터는 DB 에 그대로 남음
+        if state.quantity <= 0 and not show_zero_qty:
+            hidden_zero += 1
+            continue
+
+        pr = price_cache.get((h["ticker"], h["currency"]))
+        cur_price = pr.price if pr else None
+        is_stale = pr.is_stale if pr else False
+        cur_fx = fx_cache.rate if (h["currency"] == "USD" and fx_cache) else None
+        v = analytics.value_position(
+            state, cur_price, cur_fx, is_price_stale=is_stale
+        )
+
+        if cur_price is None:
+            price_status = "—"
+        elif is_stale:
+            price_status = "⚠️ 갱신필요"
+        else:
+            price_status = "🟢"
+
+        rows.append({
+            "티커": h["ticker"],
+            "종목명": h["name"],
+            "계좌": h["account_name"],
+            "통화": h["currency"],
+            "보유수량": float(state.quantity) if state.quantity > 0 else 0.0,
+            "평균단가": (
+                float(state.avg_cost_local)
+                if state.quantity > 0 else None
+            ),
+            "현재가": float(cur_price) if cur_price is not None else None,
+            "평가금액(₩)": (
+                float(v.market_value_krw)
+                if v.market_value_krw is not None else None
+            ),
+            "미실현손익(₩)": (
+                float(v.unrealized_pnl_krw)
+                if v.unrealized_pnl_krw is not None else None
+            ),
+            "수익률(%)": (
+                float(v.return_pct_krw)
+                if v.return_pct_krw is not None else None
+            ),
+            "상태": "✅" if h["is_active"] else "⏸",
+            "시세": price_status,
+        })
+
+    # 평가금액 큰 순으로 정렬 (None 은 뒤로)
+    rows.sort(
+        key=lambda r: (
+            r["평가금액(₩)"] if r["평가금액(₩)"] is not None else -1
+        ),
+        reverse=True,
+    )
+    df = pd.DataFrame(rows)
+    return df, hidden_zero
 
 
 def _money_market_ticker_prompt(corp_accounts: list[sqlite3.Row]) -> None:
@@ -324,7 +420,7 @@ def render_inline() -> None:
         _money_market_ticker_prompt(corp_accounts)
         st.divider()
 
-    c1, c2 = st.columns([2, 1])
+    c1, c2, c3 = st.columns([2, 1, 1])
     with c1:
         all_accounts = db.list_accounts(active_only=False)
         filter_options = [None] + [a["account_id"] for a in all_accounts]
@@ -337,27 +433,59 @@ def render_inline() -> None:
             key="hold_filter_acct",
         )
     with c2:
-        show_inactive = st.toggle("비활성 종목도 표시", value=False, key="hold_show_inactive")
+        show_inactive = st.toggle(
+            "비활성 종목 표시", value=False, key="hold_show_inactive"
+        )
+    with c3:
+        show_zero_qty = st.toggle(
+            "0주 종목 표시",
+            value=False,
+            key="hold_show_zero_qty",
+            help=(
+                "전량 매도되어 0주가 된 종목은 기본적으로 숨겨집니다. "
+                "켜면 거래 이력 보존 차원에서 함께 표시 (마스터는 DB 에 항상 남아 있음)."
+            ),
+        )
 
-    df = _holdings_dataframe(active_only=not show_inactive, account_id=filter_acct)
+    df, hidden_zero = _valued_holdings_dataframe(
+        active_only=not show_inactive,
+        account_id=filter_acct,
+        show_zero_qty=show_zero_qty,
+    )
 
     if df.empty:
-        st.info("등록된 종목이 없습니다. 아래 '새 종목 추가' 폼으로 시작하세요.")
+        if hidden_zero > 0:
+            st.info(
+                f"전량 매도된 종목 {hidden_zero}개가 숨겨져 있습니다. "
+                "위 '0주 종목 표시' 토글을 켜면 보입니다."
+            )
+        else:
+            st.info("등록된 종목이 없습니다. 아래 '새 종목 추가' 폼으로 시작하세요.")
     else:
         st.dataframe(
             df,
             use_container_width=True,
             hide_index=True,
             column_config={
-                "ticker": st.column_config.TextColumn("티커", width="small"),
-                "name": st.column_config.TextColumn("종목명"),
-                "account_name": st.column_config.TextColumn("계좌"),
-                "category": st.column_config.TextColumn("카테고리"),
-                "currency": st.column_config.TextColumn("통화", width="small"),
-                "is_active": st.column_config.TextColumn("상태", width="small"),
-                "added_at": st.column_config.DatetimeColumn("등록일", format="YYYY-MM-DD"),
-                "note": st.column_config.TextColumn("메모"),
+                "티커": st.column_config.TextColumn("티커", width="small"),
+                "종목명": st.column_config.TextColumn("종목명"),
+                "계좌": st.column_config.TextColumn("계좌"),
+                "통화": st.column_config.TextColumn("통화", width="small"),
+                "보유수량": st.column_config.NumberColumn("보유수량", format="%.4f"),
+                "평균단가": st.column_config.NumberColumn("평균단가", format="%.2f"),
+                "현재가": st.column_config.NumberColumn("현재가", format="%.2f"),
+                "평가금액(₩)": st.column_config.NumberColumn("평가금액(₩)", format="%,.0f"),
+                "미실현손익(₩)": st.column_config.NumberColumn("미실현손익(₩)", format="%,.0f"),
+                "수익률(%)": st.column_config.NumberColumn("수익률(%)", format="%+.2f"),
+                "상태": st.column_config.TextColumn("상태", width="small"),
+                "시세": st.column_config.TextColumn("시세", width="small"),
             },
+        )
+        if hidden_zero > 0:
+            st.caption(f"💡 전량 매도된 종목 {hidden_zero}개 숨김.")
+        st.caption(
+            "수익률은 원화 기준 (USD 종목은 매수환율 vs 현재환율 차이도 반영). "
+            "현재가가 비어 있으면 사이드바의 시세 갱신 버튼을 눌러 주세요."
         )
 
     st.divider()
