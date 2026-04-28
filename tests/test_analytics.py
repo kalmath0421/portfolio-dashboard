@@ -183,6 +183,87 @@ class TestValuation:
         assert v.return_pct_krw is None
 
 
+class TestDailyChange:
+    """value_position 의 일일 변동(시장 직전 거래일 종가 대비) 산출."""
+
+    def test_krw_basic(self):
+        # 10주 보유, 어제 1000 → 오늘 1100. 변동 +1000원, +10%.
+        states = replay_positions([_tx(quantity=10, price=900)])
+        s = states[(1, "X")]
+        v = value_position(
+            s, current_price_local=1100, current_fx=None,
+            previous_price_local=1000,
+        )
+        assert v.daily_change_local == D(1000)
+        assert v.daily_change_krw == D(1000)
+        assert v.daily_change_pct == D("10.00")
+
+    def test_krw_negative(self):
+        # 직전 거래일보다 떨어진 케이스 — 부호 음수.
+        states = replay_positions([_tx(quantity=5, price=1000)])
+        s = states[(1, "X")]
+        v = value_position(
+            s, current_price_local=950, current_fx=None,
+            previous_price_local=1000,
+        )
+        assert v.daily_change_local == D(-250)
+        assert v.daily_change_pct == D("-5.00")
+
+    def test_usd_uses_current_fx_for_krw_translation(self):
+        # 10주 USD, 어제 100 → 오늘 110, 환율 1300. 변동 USD 100, KRW 130000.
+        states = replay_positions([
+            _tx(currency="USD", quantity=10, price=90, fx_rate=1100),
+        ])
+        s = states[(1, "X")]
+        v = value_position(
+            s, current_price_local=110, current_fx=1300,
+            previous_price_local=100,
+        )
+        assert v.daily_change_local == D(100)
+        assert v.daily_change_krw == D(130000)
+        assert v.daily_change_pct == D("10.00")
+
+    def test_no_previous_close_yields_none(self):
+        states = replay_positions([_tx(quantity=10, price=1000)])
+        s = states[(1, "X")]
+        v = value_position(
+            s, current_price_local=1100, current_fx=None,
+            previous_price_local=None,
+        )
+        assert v.daily_change_local is None
+        assert v.daily_change_krw is None
+        assert v.daily_change_pct is None
+
+    def test_zero_quantity_yields_none(self):
+        # 전량 매도된 종목은 일일 변동도 없음.
+        states = replay_positions([
+            _tx(quantity=10, price=1000),
+            _tx(side="SELL", quantity=10, price=1100, trade_date="2026-02-01"),
+        ])
+        s = states[(1, "X")]
+        v = value_position(
+            s, current_price_local=1200, current_fx=None,
+            previous_price_local=1100,
+        )
+        assert v.daily_change_local is None
+        assert v.daily_change_krw is None
+        assert v.daily_change_pct is None
+
+    def test_usd_without_current_fx_local_only(self):
+        # USD 종목인데 환율이 없으면 KRW 변동은 산출 불가, 현지 변동은 가능.
+        states = replay_positions([
+            _tx(currency="USD", quantity=10, price=90, fx_rate=1100),
+        ])
+        s = states[(1, "X")]
+        v = value_position(
+            s, current_price_local=110, current_fx=None,
+            previous_price_local=100,
+        )
+        assert v.daily_change_local == D(100)
+        assert v.daily_change_krw is None
+        assert v.daily_change_pct == D("10.00")
+
+
 class TestFxAttribution:
     def test_split_into_price_fx_cross(self):
         states = replay_positions([

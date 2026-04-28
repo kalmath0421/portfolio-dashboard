@@ -26,6 +26,9 @@ class PriceResult:
     as_of: date
     source: str  # "yfinance", "pykrx", "snapshot"
     is_stale: bool  # True면 라이브 조회 실패 → 마지막 스냅샷 사용
+    # 시장 캘린더 기준 직전 거래일 종가 — 일일 P&L 계산용. 스냅샷 폴백 또는
+    # 라이브 조회가 1행만 반환했을 때 None.
+    previous_close: float | None = None
 
 
 @dataclass(frozen=True)
@@ -38,11 +41,14 @@ class FxResult:
 
 # --- 마지막 스냅샷 폴백 ---
 
-def _last_price_snapshot(ticker: str) -> tuple[float, str, date] | None:
+def _last_price_snapshot(
+    ticker: str,
+) -> tuple[float, str, date, float | None] | None:
+    """반환: (close_price, currency, as_of, previous_close)."""
     with db.transaction() as conn:
         row = conn.execute(
             """
-            SELECT close_price, currency, snapshot_date
+            SELECT close_price, currency, snapshot_date, previous_close
             FROM price_snapshots
             WHERE ticker = ?
             ORDER BY snapshot_date DESC
@@ -55,7 +61,10 @@ def _last_price_snapshot(ticker: str) -> tuple[float, str, date] | None:
     snap_date = row["snapshot_date"]
     if isinstance(snap_date, str):
         snap_date = date.fromisoformat(snap_date)
-    return float(row["close_price"]), row["currency"], snap_date
+    prev = row["previous_close"]
+    return float(row["close_price"]), row["currency"], snap_date, (
+        float(prev) if prev is not None else None
+    )
 
 
 def _last_fx_snapshot() -> tuple[float, date] | None:
@@ -75,16 +84,20 @@ def _last_fx_snapshot() -> tuple[float, date] | None:
 
 
 def _save_price_snapshot(
-    ticker: str, price: float, currency: str, as_of: date
+    ticker: str,
+    price: float,
+    currency: str,
+    as_of: date,
+    previous_close: float | None = None,
 ) -> None:
     with db.transaction() as conn:
         conn.execute(
             """
             INSERT OR REPLACE INTO price_snapshots
-                (snapshot_date, ticker, close_price, currency)
-            VALUES (?, ?, ?, ?)
+                (snapshot_date, ticker, close_price, currency, previous_close)
+            VALUES (?, ?, ?, ?, ?)
             """,
-            (as_of.isoformat(), ticker, price, currency),
+            (as_of.isoformat(), ticker, price, currency, previous_close),
         )
 
 
@@ -101,8 +114,13 @@ def _save_fx_snapshot(rate: float, as_of: date) -> None:
 
 # --- 라이브 조회 (외부 의존) ---
 
-def _fetch_us_price(ticker: str) -> tuple[float, date] | None:
-    """yfinance로 미국 주식/ETF 종가 조회. 실패 시 None."""
+def _fetch_us_price(
+    ticker: str,
+) -> tuple[float, date, float | None] | None:
+    """yfinance로 미국 주식/ETF 종가 + 직전 거래일 종가 조회. 실패 시 None.
+
+    Returns: (close, as_of, previous_close).
+    """
     try:
         import yfinance as yf
     except ImportError:
@@ -116,16 +134,21 @@ def _fetch_us_price(ticker: str) -> tuple[float, date] | None:
         last_idx = hist.index[-1]
         close = float(hist["Close"].iloc[-1])
         as_of = last_idx.date() if hasattr(last_idx, "date") else date.today()
-        return close, as_of
+        prev: float | None = None
+        if len(hist) >= 2:
+            prev = float(hist["Close"].iloc[-2])
+        return close, as_of, prev
     except Exception as e:  # 네트워크/포맷 오류 등
         logger.warning("yfinance fetch failed for %s: %s", ticker, e)
         return None
 
 
-def _fetch_kr_price(ticker: str) -> tuple[float, date] | None:
-    """pykrx로 국내 종목/ETF 종가 조회 (최근 거래일).
+def _fetch_kr_price(
+    ticker: str,
+) -> tuple[float, date, float | None] | None:
+    """pykrx로 국내 종목/ETF 종가 + 직전 거래일 종가 조회.
 
-    pykrx는 ETF/주식 통합 조회에 stock.get_market_ohlcv_by_date 사용.
+    Returns: (close, as_of, previous_close).
     """
     try:
         from pykrx import stock
@@ -133,7 +156,7 @@ def _fetch_kr_price(ticker: str) -> tuple[float, date] | None:
         logger.warning("pykrx가 설치되지 않음")
         return None
     try:
-        # 최근 7일 범위에서 마지막 거래일 종가
+        # 최근 ~10거래일 범위에서 마지막 두 거래일 종가
         today = date.today()
         start = (today - timedelta(days=10)).strftime("%Y%m%d")
         end = today.strftime("%Y%m%d")
@@ -146,7 +169,10 @@ def _fetch_kr_price(ticker: str) -> tuple[float, date] | None:
         close = float(df["종가"].iloc[-1])
         last_idx = df.index[-1]
         as_of = last_idx.date() if hasattr(last_idx, "date") else today
-        return close, as_of
+        prev: float | None = None
+        if len(df) >= 2:
+            prev = float(df["종가"].iloc[-2])
+        return close, as_of, prev
     except Exception as e:
         logger.warning("pykrx fetch failed for %s: %s", ticker, e)
         return None
@@ -177,7 +203,7 @@ def _fetch_usdkrw() -> tuple[float, date] | None:
 
 def get_price(ticker: str, currency: str) -> PriceResult | None:
     """시세 조회. 라이브 → 실패 시 마지막 스냅샷 → 둘 다 없으면 None."""
-    fetched: tuple[float, date] | None
+    fetched: tuple[float, date, float | None] | None
     source: str
     if currency == "USD":
         fetched = _fetch_us_price(ticker)
@@ -189,11 +215,12 @@ def get_price(ticker: str, currency: str) -> PriceResult | None:
         raise ValueError(f"unsupported currency: {currency}")
 
     if fetched is not None:
-        price, as_of = fetched
-        _save_price_snapshot(ticker, price, currency, as_of)
+        price, as_of, prev_close = fetched
+        _save_price_snapshot(ticker, price, currency, as_of, prev_close)
         return PriceResult(
             ticker=ticker, price=price, currency=currency,
             as_of=as_of, source=source, is_stale=False,
+            previous_close=prev_close,
         )
 
     # 폴백: 마지막 스냅샷
@@ -201,10 +228,11 @@ def get_price(ticker: str, currency: str) -> PriceResult | None:
     if snap is None:
         logger.warning("No price available for %s", ticker)
         return None
-    price, snap_currency, as_of = snap
+    price, snap_currency, as_of, prev_close = snap
     return PriceResult(
         ticker=ticker, price=price, currency=snap_currency,
         as_of=as_of, source="snapshot", is_stale=True,
+        previous_close=prev_close,
     )
 
 
@@ -257,11 +285,12 @@ def auto_refresh_prices(holdings) -> dict:
         if snapshot_is_today(h["ticker"]):
             snap = _last_price_snapshot(h["ticker"])
             if snap:
-                price, snap_currency, as_of = snap
+                price, snap_currency, as_of, prev_close = snap
                 cache[key] = PriceResult(
                     ticker=h["ticker"], price=price,
                     currency=snap_currency, as_of=as_of,
                     source="snapshot", is_stale=False,
+                    previous_close=prev_close,
                 )
                 continue
         # 오늘자 없음 — 라이브 호출 (실패 시 폴백)
@@ -297,7 +326,7 @@ def load_cached_prices(holdings) -> dict:
         snap = _last_price_snapshot(h["ticker"])
         if snap is None:
             continue
-        price, snap_currency, as_of = snap
+        price, snap_currency, as_of, prev_close = snap
         cache[key] = PriceResult(
             ticker=h["ticker"],
             price=price,
@@ -305,6 +334,7 @@ def load_cached_prices(holdings) -> dict:
             as_of=as_of,
             source="snapshot",
             is_stale=True,
+            previous_close=prev_close,
         )
     return cache
 

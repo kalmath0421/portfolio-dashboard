@@ -124,6 +124,7 @@ CREATE TABLE IF NOT EXISTS price_snapshots (
     ticker TEXT NOT NULL,
     close_price REAL NOT NULL,
     currency TEXT NOT NULL,
+    previous_close REAL,
     PRIMARY KEY (snapshot_date, ticker)
 );
 
@@ -246,6 +247,11 @@ def init_schema() -> None:
         _migrate_add_column_if_missing(
             conn, "accounts", "default_fee_rate",
             "REAL NOT NULL DEFAULT 0",
+        )
+        # 일일 P&L 계산용 — 시장의 직전 거래일 종가. NULL 허용 (snapshot 폴백 시
+        # 채워지지 않을 수 있음).
+        _migrate_add_column_if_missing(
+            conn, "price_snapshots", "previous_close", "REAL",
         )
 
 

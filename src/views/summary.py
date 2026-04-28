@@ -1,7 +1,7 @@
 """상단 공통 헤더 + 요약 메인 페이지."""
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -33,6 +33,26 @@ def _format_pct(pct: Decimal | float | None) -> str:
     return f"{float(pct):+.2f}%"
 
 
+def _format_signed_krw(amount: Decimal | int | float | None) -> str:
+    """일일 변동용 — 부호 포함 (+12,345 원 / −6,789 원)."""
+    if amount is None:
+        return "—"
+    n = int(Decimal(str(amount)))
+    if n == 0:
+        return "0 원"
+    sign = "+" if n > 0 else "−"
+    return f"{sign}{abs(n):,} 원"
+
+
+def _daily_basis_caption() -> str:
+    """일일 P&L 카드의 '기준 시각' 캡션. 라이브 갱신 후엔 그 시각을, 그 전엔
+    캐시된 마지막 스냅샷의 날짜를 보여줌."""
+    fetched = st.session_state.get("prices_fetched_at")
+    if isinstance(fetched, datetime):
+        return f"기준 {fetched.strftime('%m-%d %H:%M')} (라이브 갱신)"
+    return "기준 마지막 스냅샷 (🔄 시세 갱신 으로 최신화)"
+
+
 def _gather() -> dict:
     """모든 활성 종목 valuation + 분배금 + 사업연도 세금 합산."""
     holdings = db.list_holdings(active_only=True)
@@ -57,8 +77,13 @@ def _gather() -> dict:
         pr = price_cache.get((h["ticker"], h["currency"]))
         cur_price = pr.price if pr else None
         is_stale = pr.is_stale if pr else False
+        prev_price = pr.previous_close if pr else None
         cur_fx = fx_cache.rate if (h["currency"] == "USD" and fx_cache) else None
-        v = analytics.value_position(state, cur_price, cur_fx, is_price_stale=is_stale)
+        v = analytics.value_position(
+            state, cur_price, cur_fx,
+            is_price_stale=is_stale,
+            previous_price_local=prev_price,
+        )
         valuations.append(v)
 
     total_mv = sum(
@@ -74,6 +99,24 @@ def _gather() -> dict:
         (total_unreal / total_cost * D(100)).quantize(D("0.01"))
         if total_cost > 0 else None
     )
+
+    # 일일 변동 (시장 캘린더 직전 거래일 종가 대비) — prev_close 가 있는 종목만 합산.
+    daily_change_krw = sum(
+        (v.daily_change_krw for v in valuations if v.daily_change_krw is not None),
+        D(0),
+    )
+    # 분모: 직전 거래일 종가 기준 평가금액 (= 오늘 평가금액 − 일일 변동)
+    daily_base_krw = total_mv - daily_change_krw
+    daily_change_pct = (
+        (daily_change_krw / daily_base_krw * D(100)).quantize(D("0.01"))
+        if daily_base_krw > 0 and daily_change_krw != 0 else None
+    )
+    # prev_close 가 채워진 종목 수 → "기준일" 신뢰도 캡션용
+    coverage = sum(
+        1 for v in valuations
+        if v.daily_change_krw is not None and v.quantity > 0
+    )
+    total_with_qty = sum(1 for v in valuations if v.quantity > 0)
 
     # 누적 분배금 (전체 기간)
     div_gross = sum(
@@ -106,6 +149,10 @@ def _gather() -> dict:
         "fy_summary": fy_summary,
         "expected_tax": expected_tax,
         "fx_cache": fx_cache,
+        "daily_change_krw": daily_change_krw,
+        "daily_change_pct": daily_change_pct,
+        "daily_coverage": coverage,
+        "daily_total_with_qty": total_with_qty,
     }
 
 
@@ -309,6 +356,8 @@ def _refresh_button(holdings) -> None:
                 price_cache[key] = prices.get_price(h["ticker"], h["currency"])
             st.session_state["price_cache"] = price_cache
             st.session_state["fx_cache"] = prices.get_usdkrw()
+            # 라이브 호출 시각 — 일일 P&L 카드의 "기준" 캡션에 사용.
+            st.session_state["prices_fetched_at"] = datetime.now()
         st.rerun()
 
 
@@ -328,8 +377,8 @@ def render() -> None:
 
     _refresh_button(s["holdings"])
 
-    # 큰 메트릭 카드 2개
-    c1, c2 = st.columns(2)
+    # 큰 메트릭 카드 3개 — 평가금액 / 투자원금 / 일일 변동
+    c1, c2, c3 = st.columns(3)
     with c1:
         delta = (
             f"{_format_krw(s['total_unreal'])} ({_format_pct(s['return_pct'])})"
@@ -345,6 +394,26 @@ def render() -> None:
             "🌱 투자원금",
             _format_krw(s["total_cost"]),
         )
+    with c3:
+        coverage = s["daily_coverage"]
+        total_q = s["daily_total_with_qty"]
+        if total_q > 0 and coverage > 0:
+            st.metric(
+                "📅 오늘 변동",
+                _format_signed_krw(s["daily_change_krw"]),
+                delta=_format_pct(s["daily_change_pct"]),
+                help=(
+                    "각 종목 시장의 직전 거래일 종가 대비 평가액 변동. "
+                    "USD 종목은 현재 환율로 환산. "
+                    f"({coverage}/{total_q}개 종목 prev_close 보유)"
+                ),
+            )
+            st.caption(_daily_basis_caption())
+        else:
+            st.metric("📅 오늘 변동", "—")
+            st.caption(
+                "💡 prev_close 데이터 없음. '🔄 시세 갱신' 한 번 누르면 산출 시작."
+            )
 
     # 분배금 포함 총수익 — 자본이득(미실현) + 누적 분배금(세후).
     # 수익률은 delta 에 함께 표기해 카드 한 개로 통합 (산만함 줄이기).

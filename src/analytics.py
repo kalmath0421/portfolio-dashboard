@@ -143,10 +143,15 @@ class HoldingValuation:
     market_value_krw: Decimal | None
     unrealized_pnl_krw: Decimal | None
     return_pct_krw: Decimal | None          # 원화 수익률 (%)
+    # 일일 변동 (시장 캘린더 기준 직전 거래일 종가 대비)
+    previous_price_local: Decimal | None = None
+    daily_change_local: Decimal | None = None      # qty × (cur - prev)
+    daily_change_krw: Decimal | None = None        # 위에 현재 환율 곱 (USD)
+    daily_change_pct: Decimal | None = None        # (cur - prev) / prev × 100
     # 누적
-    realized_pnl_krw: Decimal
-    cumulative_dividend_gross_krw: Decimal
-    cumulative_dividend_net_krw: Decimal
+    realized_pnl_krw: Decimal = Decimal(0)
+    cumulative_dividend_gross_krw: Decimal = Decimal(0)
+    cumulative_dividend_net_krw: Decimal = Decimal(0)
     is_price_stale: bool = False
 
 
@@ -161,10 +166,20 @@ def value_position(
     current_price_local: Decimal | float | None,
     current_fx: Decimal | float | None,
     is_price_stale: bool = False,
+    previous_price_local: Decimal | float | None = None,
 ) -> HoldingValuation:
-    """현재가 + 환율로 손익·수익률(현지/원화 양쪽)을 계산해 HoldingValuation 생성."""
+    """현재가 + 환율로 손익·수익률(현지/원화 양쪽)을 계산해 HoldingValuation 생성.
+
+    ``previous_price_local`` 이 주어지면 일일 변동(시장 직전 거래일 대비)도 계산.
+    USD 종목은 KRW 환산에 ``current_fx`` 를 씀 (어제 환율은 일단 무시 — 일일 P&L
+    표시 목적상 가격 변동을 깨끗이 보여주는 게 우선).
+    """
     cp = D(str(current_price_local)) if current_price_local is not None else None
     fx = D(str(current_fx)) if current_fx is not None else None
+    pp = (
+        D(str(previous_price_local))
+        if previous_price_local is not None else None
+    )
 
     cost_local: Decimal | None = None
     mv_local: Decimal | None = None
@@ -202,6 +217,20 @@ def value_position(
                 pnl_krw = pnl_local
                 ret_krw = ret_local
 
+    # 일일 변동 — 보유분에 한해 (current - previous) × qty.
+    daily_local: Decimal | None = None
+    daily_krw: Decimal | None = None
+    daily_pct: Decimal | None = None
+    if state.quantity > 0 and cp is not None and pp is not None and pp > 0:
+        diff = cp - pp
+        daily_local = state.quantity * diff
+        daily_pct = (diff / pp * D(100)).quantize(D("0.01"))
+        if state.currency == "USD":
+            if fx is not None and fx > 0:
+                daily_krw = state.quantity * diff * fx
+        else:  # KRW
+            daily_krw = daily_local
+
     return HoldingValuation(
         ticker=state.ticker,
         account_id=state.account_id,
@@ -219,6 +248,10 @@ def value_position(
         market_value_krw=mv_krw,
         unrealized_pnl_krw=pnl_krw,
         return_pct_krw=ret_krw,
+        previous_price_local=pp,
+        daily_change_local=daily_local,
+        daily_change_krw=daily_krw,
+        daily_change_pct=daily_pct,
         realized_pnl_krw=state.realized_pnl_krw,
         cumulative_dividend_gross_krw=state.cumulative_dividend_gross_krw,
         cumulative_dividend_net_krw=state.cumulative_dividend_net_krw,
