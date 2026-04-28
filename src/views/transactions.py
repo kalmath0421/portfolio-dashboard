@@ -118,13 +118,13 @@ def _combined_new_holding_form() -> None:
         # --- 초기 보유분 정보 ---
         st.markdown("**2. 초기 보유분**")
         # 통화별 단가 자릿수 — KRW 정수 / USD 2자리.
-        price_format = "%d" if currency == "KRW" else "%.2f"
+        price_format = "%.0f" if currency == "KRW" else "%.2f"
         price_step = 1.0 if currency == "KRW" else 0.01
 
         c4, c5, c6 = st.columns(3)
         with c4:
             quantity = st.number_input(
-                "보유 수량 *", min_value=0.0, step=1.0, format="%d",
+                "보유 수량 *", min_value=0.0, step=1.0, format="%.0f",
                 key="combined_qty",
                 help="소수점 매매한 USD 종목이면 직접 입력 (보통 정수).",
             )
@@ -155,7 +155,7 @@ def _combined_new_holding_form() -> None:
             with c8:
                 fee_override = st.number_input(
                     "수수료 직접 입력 (선택, 원화)",
-                    min_value=0.0, step=100.0, value=0.0, format="%d",
+                    min_value=0.0, step=100.0, value=0.0, format="%.0f",
                     key="combined_fee",
                     help="0이면 계좌 기본 율로 자동 계산. 다른 값을 직접 넣으면 그 값으로 덮어씀.",
                 )
@@ -169,7 +169,7 @@ def _combined_new_holding_form() -> None:
             with c8:
                 fee_override = st.number_input(
                     "수수료 직접 입력 (선택, 원화)",
-                    min_value=0.0, step=100.0, value=0.0, format="%d",
+                    min_value=0.0, step=100.0, value=0.0, format="%.0f",
                     key="combined_fee",
                     help="0이면 계좌 기본 율로 자동 계산. 다른 값을 직접 넣으면 그 값으로 덮어씀.",
                 )
@@ -302,7 +302,7 @@ def _trade_form() -> None:
         )
 
     # 통화별 number_input 포맷 — KRW 정수 / USD 2자리.
-    price_format = "%d" if ticker_currency == "KRW" else "%.2f"
+    price_format = "%.0f" if ticker_currency == "KRW" else "%.2f"
     price_step = 1.0 if ticker_currency == "KRW" else 0.01
 
     with st.form("trade_form", clear_on_submit=True):
@@ -316,7 +316,7 @@ def _trade_form() -> None:
             )
         with c2:
             quantity = st.number_input(
-                "수량", min_value=0.0, step=1.0, format="%d",
+                "수량", min_value=0.0, step=1.0, format="%.0f",
                 help="소수점 매매를 한 경우만 직접 수정 (보통 정수).",
             )
             price = st.number_input(
@@ -337,7 +337,7 @@ def _trade_form() -> None:
                 fx_rate = None
             fee_override = st.number_input(
                 "수수료 직접 입력 (선택, 원화)",
-                min_value=0.0, step=100.0, value=0.0, format="%d",
+                min_value=0.0, step=100.0, value=0.0, format="%.0f",
                 help="0이면 계좌 기본 율로 자동 계산. 다른 값을 직접 넣으면 그 값으로 덮어씀.",
             )
 
