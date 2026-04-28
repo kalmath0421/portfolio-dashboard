@@ -238,18 +238,21 @@ span.material-icons,
    [data-testid] span (11) 을 깔끔히 이김. */
 .cm-value .cm-latin,
 .cm-delta .cm-latin {
-    /* 라운드 37: Oswald 1순위. Roboto Condensed 보다 더 극단적으로 narrow.
-       letter-spacing 만으로는 한계 → 글리프 자체가 좁은 폰트로 교체.
-       디스플레이용 폰트 (sport scoreboard / 신문 제목 느낌) 라 호불호 가능. */
+    /* 라운드 37+38: Oswald 1순위 + 합성 볼드 제거.
+       라운드 37 후 Rendered Fonts 에 'Oswald-Regular_Bold' 표시 — Bold (700)
+       weight 가 매핑 실패해 Regular 을 합성. Inter 때와 같은 패턴.
+       해법: .cm-value 의 font-weight: 700 을 .cm-latin 에서 500 으로 강제
+       오버라이드. Oswald Medium (500) 은 정확 로드되므로 합성 불필요. 시각적
+       으로도 500 자체가 충분히 두꺼움 (Oswald 디자인 자체가 condensed display). */
     font-family: 'Oswald',
                  'Roboto Condensed',
                  -apple-system, BlinkMacSystemFont,
                  'Segoe UI', sans-serif !important;
+    font-weight: 500 !important;  /* 라운드 38: 합성 볼드 차단 */
     font-variant-numeric: proportional-nums lining-nums !important;
     font-feature-settings: 'pwid' 1, 'fwid' 0, 'pnum' 1, 'tnum' 0,
                            'kern' 1, 'liga' 1 !important;
     font-synthesis: none !important;
-    /* Oswald 자체가 narrow 라 letter-spacing 은 약하게 (-0.02em). */
     letter-spacing: -0.02em !important;
     font-variant-east-asian: normal !important;
     font-stretch: normal !important;
