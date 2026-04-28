@@ -234,7 +234,13 @@ span.material-icons,
    [data-testid] span (11) 을 깔끔히 이김. */
 .cm-value .cm-latin,
 .cm-delta .cm-latin {
-    /* 라운드 34: Roboto Condensed 1순위. */
+    /* 라운드 36: 사용자 정확한 진단 — scaleX 는 장평을 줄였지만 자간 (글자
+       사이 간격) 은 그대로. 사용자는 자간 축소를 원함. transform 제거하고
+       letter-spacing 을 매우 공격적인 값으로 (-0.1em). 26px 디스플레이에서
+       per-char -2.6px = "728,766,333" 11자 = -28px 총 간격 단축 → 디지트
+       사이가 확실히 붙어 보임.
+       Roboto Condensed 는 글리프 자체가 narrow 라 그대로 두면 폭+자간 양쪽
+       타이트. */
     font-family: 'Roboto Condensed',
                  -apple-system, BlinkMacSystemFont,
                  'Segoe UI', 'Helvetica Neue',
@@ -243,18 +249,11 @@ span.material-icons,
     font-feature-settings: 'pwid' 1, 'fwid' 0, 'pnum' 1, 'tnum' 0,
                            'kern' 1, 'liga' 1 !important;
     font-synthesis: none !important;
-    letter-spacing: -0.05em !important;
+    letter-spacing: -0.1em !important;  /* 라운드 35의 -0.05em → 2배 공격적 */
     font-variant-east-asian: normal !important;
     font-stretch: normal !important;
     font-kerning: normal !important;
     text-rendering: optimizeLegibility !important;
-    /* 라운드 35 (BRUTE FORCE): 폰트/feature 다 적용했는데도 모바일이 못봐줄
-       정도로 wide 라면 글리프 자체의 폭이 문제. transform 으로 렌더링 단계에서
-       가로 15% 압축 — 폰트 metric 무관하게 시각 폭 강제 단축.
-       inline-block 필요 (transform 은 inline element 에 적용 안 됨). */
-    display: inline-block !important;
-    transform: scaleX(0.85);
-    transform-origin: left center;
 }
 .cm-value .cm-hangul,
 .cm-delta .cm-hangul {
