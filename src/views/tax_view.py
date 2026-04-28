@@ -9,7 +9,7 @@ import pandas as pd
 import streamlit as st
 import yaml
 
-from src import db, exports, tax
+from src import db, exports, tax, ui_components
 
 
 TAX_RULES_PATH = Path(__file__).resolve().parent.parent.parent / "config" / "tax_rules.yaml"
@@ -60,13 +60,13 @@ def render() -> None:
 
     m1, m2, m3, m4 = st.columns(4)
     with m1:
-        st.metric("분배금/배당 합계 (세전)", _format_krw(summary.dividend_taxable_krw))
+        ui_components.metric("분배금/배당 합계 (세전)", _format_krw(summary.dividend_taxable_krw))
     with m2:
-        st.metric("실현 매매차익", _format_krw(summary.realized_gain_taxable_krw))
+        ui_components.metric("실현 매매차익", _format_krw(summary.realized_gain_taxable_krw))
     with m3:
-        st.metric("환차손익", _format_krw(summary.fx_gain_taxable_krw))
+        ui_components.metric("환차손익", _format_krw(summary.fx_gain_taxable_krw))
     with m4:
-        st.metric("외국납부세액 (공제 대상)", _format_krw(summary.foreign_tax_paid_krw))
+        ui_components.metric("외국납부세액 (공제 대상)", _format_krw(summary.foreign_tax_paid_krw))
 
     st.divider()
     st.subheader("📊 누진세 적용 결과")
@@ -74,11 +74,11 @@ def render() -> None:
 
     e1, e2, e3 = st.columns(3)
     with e1:
-        st.metric("투자 외 기준 법인세", _format_krw(expected["base_tax"]))
+        ui_components.metric("투자 외 기준 법인세", _format_krw(expected["base_tax"]))
     with e2:
-        st.metric("투자 포함 총 법인세", _format_krw(expected["total_tax"]))
+        ui_components.metric("투자 포함 총 법인세", _format_krw(expected["total_tax"]))
     with e3:
-        st.metric(
+        ui_components.metric(
             "투자에 따른 추가세액",
             _format_krw(expected["additional_tax"]),
             delta=_format_krw(-expected["foreign_tax_credit"])
@@ -86,7 +86,7 @@ def render() -> None:
             delta_color="inverse",
         )
 
-    st.metric(
+    ui_components.metric(
         "외국납부세액 공제 후 순추가세액",
         _format_krw(expected["net_additional_after_credit"]),
     )

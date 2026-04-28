@@ -9,7 +9,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from src import analytics, db, prices, profile_config, tax
+from src import analytics, db, prices, profile_config, tax, ui_components
 
 
 D = Decimal
@@ -162,14 +162,14 @@ def render_header() -> None:
     is_personal = profile_config.is_personal()
     cols = st.columns(3 if is_personal else 4)
     with cols[0]:
-        st.metric(
+        ui_components.metric(
             "총 평가금액 (KRW)",
             _format_krw(s["total_mv"]),
             delta=_format_pct(s["return_pct"]),
             help="모든 활성 종목의 평가금액 합 (USD는 현재 환율로 환산)",
         )
     with cols[1]:
-        st.metric(
+        ui_components.metric(
             "투자원금 (KRW)",
             _format_krw(s["total_cost"]),
             help="평균단가 × 보유수량의 합 (USD는 매입 시점 환율)",
@@ -178,7 +178,7 @@ def render_header() -> None:
         delta_str = (
             f"세후 {_format_krw(s['div_net'])}" if s["div_gross"] > 0 else None
         )
-        st.metric(
+        ui_components.metric(
             "누적 분배금 (세전)",
             _format_krw(s["div_gross"]),
             delta=delta_str,
@@ -187,13 +187,13 @@ def render_header() -> None:
     if not is_personal:
         with cols[3]:
             if s["expected_tax"]:
-                st.metric(
+                ui_components.metric(
                     "사업연도 예상 추가 법인세",
                     _format_krw(s["expected_tax"]["net_additional_after_credit"]),
                     help="투자 외 본업 소득 0원 가정. '💰 세금 추적'에서 정밀 계산.",
                 )
             else:
-                st.metric("사업연도 예상 추가 법인세", "—")
+                ui_components.metric("사업연도 예상 추가 법인세", "—")
 
 
 def _account_cards(valuations: list[analytics.HoldingValuation]) -> None:
@@ -217,7 +217,7 @@ def _account_cards(valuations: list[analytics.HoldingValuation]) -> None:
                     (pnl / cost * D(100)).quantize(D("0.01"))
                     if cost > 0 else None
                 )
-                st.metric("평가금액", _format_krw(mv), delta=_format_pct(ret))
+                ui_components.metric("평가금액", _format_krw(mv), delta=_format_pct(ret))
                 st.caption(
                     f"원가 {_format_krw(cost)} · 미실현 {_format_krw(pnl)}"
                 )
@@ -342,13 +342,13 @@ def _fy_tax_panel(s: dict) -> None:
     st.subheader(f"💰 {fy.fiscal_year} 사업연도 세금 누적")
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        st.metric("분배금/배당 (세전)", _format_krw(fy.dividend_taxable_krw))
+        ui_components.metric("분배금/배당 (세전)", _format_krw(fy.dividend_taxable_krw))
     with c2:
-        st.metric("실현 매매차익", _format_krw(fy.realized_gain_taxable_krw))
+        ui_components.metric("실현 매매차익", _format_krw(fy.realized_gain_taxable_krw))
     with c3:
-        st.metric("외국납부세액", _format_krw(fy.foreign_tax_paid_krw))
+        ui_components.metric("외국납부세액", _format_krw(fy.foreign_tax_paid_krw))
     with c4:
-        st.metric(
+        ui_components.metric(
             "예상 추가 법인세 (공제 후)",
             _format_krw(et["net_additional_after_credit"]),
         )
@@ -396,13 +396,13 @@ def render() -> None:
             f"{_format_krw(s['total_unreal'])} ({_format_pct(s['return_pct'])})"
             if s["total_cost"] > 0 else None
         )
-        st.metric(
+        ui_components.metric(
             "💰 총 평가금액",
             _format_krw(s["total_mv"]),
             delta=delta,
         )
     with c2:
-        st.metric(
+        ui_components.metric(
             "🌱 투자원금",
             _format_krw(s["total_cost"]),
         )
@@ -410,7 +410,7 @@ def render() -> None:
         coverage = s["daily_coverage"]
         total_q = s["daily_total_with_qty"]
         if total_q > 0 and coverage > 0:
-            st.metric(
+            ui_components.metric(
                 "📅 오늘 변동",
                 _format_signed_krw(s["daily_change_krw"]),
                 delta=_format_pct(s["daily_change_pct"]),
@@ -422,7 +422,7 @@ def render() -> None:
             )
             st.caption(_daily_basis_caption())
         else:
-            st.metric("📅 오늘 변동", "—")
+            ui_components.metric("📅 오늘 변동", "—")
             st.caption(
                 "💡 prev_close 데이터 없음. '🔄 시세 갱신' 한 번 누르면 산출 시작."
             )
@@ -434,7 +434,7 @@ def render() -> None:
         total_return_pct = (
             total_return / D(str(s["total_cost"])) * D(100)
         ).quantize(D("0.01"))
-        st.metric(
+        ui_components.metric(
             "💎 총수익 (분배금 포함, 세후)",
             _format_krw(total_return),
             delta=(

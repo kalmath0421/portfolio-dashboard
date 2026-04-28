@@ -8,7 +8,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from src import analytics, db
+from src import analytics, db, ui_components
 
 
 D = Decimal
@@ -94,13 +94,13 @@ def _value_history_chart(period: str) -> None:
     delta_pct = (delta_value / first["평가금액"] * 100) if first["평가금액"] > 0 else 0
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.metric("기간 시작", f"{int(first['평가금액']):,} 원",
+        ui_components.metric("기간 시작", f"{int(first['평가금액']):,} 원",
                   help=f"{first['date'].date()}")
     with c2:
-        st.metric("현재", f"{int(latest['평가금액']):,} 원",
+        ui_components.metric("현재", f"{int(latest['평가금액']):,} 원",
                   help=f"{latest['date'].date()}")
     with c3:
-        st.metric("기간 변동", f"{int(delta_value):+,} 원",
+        ui_components.metric("기간 변동", f"{int(delta_value):+,} 원",
                   delta=f"{delta_pct:+.2f}%")
 
 
@@ -140,12 +140,12 @@ def _dividend_monthly_chart() -> None:
     total_net = df["세후"].sum()
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.metric("누적 세전", f"{int(total_gross):,} 원")
+        ui_components.metric("누적 세전", f"{int(total_gross):,} 원")
     with c2:
-        st.metric("누적 세후", f"{int(total_net):,} 원")
+        ui_components.metric("누적 세후", f"{int(total_net):,} 원")
     with c3:
         diff = total_gross - total_net
-        st.metric("원천징수 합계", f"{int(diff):,} 원")
+        ui_components.metric("원천징수 합계", f"{int(diff):,} 원")
 
 
 def _share_donut(values: list[tuple[str, float]], title: str) -> None:

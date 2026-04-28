@@ -183,6 +183,52 @@ span.material-icons,
     font-size: 0.85rem !important;
 }
 
+/* ---- 커스텀 메트릭 카드 (Plan B — ui_components.metric) ----
+   st.metric 의 stMetric/stMetricValue 가 emotion CSS + baseweb wrapper 로
+   라틴 글리프를 wide 하게 그리는 사고 (라운드 26 까지 abandon) 를 피하기 위해
+   HTML 마크다운으로 직접 렌더. 핵심 폰트 속성은 ui_components.metric 에서
+   inline style 로 박아 어떤 외부 CSS 도 안 닿음. 여기 CSS 는 단순 외형만. */
+.cm-metric {
+    background: linear-gradient(135deg, #1A1F2C 0%, #14171F 100%);
+    border: 1px solid #232936;
+    border-radius: 14px;
+    padding: 1rem 1.25rem;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.02) inset,
+                0 4px 12px rgba(0, 0, 0, 0.25);
+    transition: transform 0.15s ease, border-color 0.15s ease;
+    margin-bottom: 0.5rem;
+}
+.cm-metric:hover {
+    border-color: #F5A623;
+    transform: translateY(-1px);
+}
+.cm-label {
+    color: #94A3B8;
+    font-size: 0.82rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    margin-bottom: 0.4rem;
+}
+.cm-value {
+    color: #F1F5F9;
+    font-size: 1.65rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+.cm-delta {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-top: 0.25rem;
+}
+.cm-up { color: #22C55E; }
+.cm-down { color: #EF4444; }
+.cm-flat { color: #94A3B8; }
+.cm-help {
+    cursor: help;
+    color: #7E8895;
+    font-size: 0.75rem;
+}
+
 /* ---- 사이드바 ---- */
 [data-testid="stSidebar"] {
     background: linear-gradient(180deg, #14171F 0%, #0F1218 100%);
@@ -344,6 +390,9 @@ hr {
     [data-testid="stMetric"] {
         padding: 0.75rem 0.85rem !important;
     }
+    /* 커스텀 메트릭도 같이 축소 */
+    .cm-value { font-size: 1.25rem !important; }
+    .cm-metric { padding: 0.75rem 0.85rem !important; }
     /* 데이터프레임 가로 스크롤 허용 */
     [data-testid="stDataFrame"] {
         overflow-x: auto !important;

@@ -6,7 +6,7 @@ from decimal import Decimal
 import pandas as pd
 import streamlit as st
 
-from src import analytics, db, prices
+from src import analytics, db, prices, ui_components
 
 
 D = Decimal
@@ -88,21 +88,21 @@ def _account_metrics(account_id: int, agg: dict) -> None:
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         usd_mv = agg["market_value_usd"]
-        st.metric(
+        ui_components.metric(
             "USD 평가금액",
             _format_usd(usd_mv) if usd_mv > 0 else "—",
             help="이 계좌의 USD 종목 평가금액 합 (현지통화 그대로)",
         )
     with c2:
         krw_mv = agg["market_value_krw_only"]
-        st.metric(
+        ui_components.metric(
             "KRW 평가금액",
             _format_krw(krw_mv) if krw_mv > 0 else "—",
             help="이 계좌의 KRW 종목 평가금액 합",
         )
     with c3:
         total_krw = agg["market_value_krw"]
-        st.metric(
+        ui_components.metric(
             "총 평가금액 (KRW 환산)",
             _format_krw(total_krw) if total_krw > 0 else "—",
             help="USD 종목을 현재 환율로 환산해 합산한 총액",
@@ -114,7 +114,7 @@ def _account_metrics(account_id: int, agg: dict) -> None:
             (unreal / cost * D(100)).quantize(D("0.01"))
             if cost and cost > 0 else None
         )
-        st.metric(
+        ui_components.metric(
             "미실현 손익 (KRW)",
             _format_krw(unreal) if unreal != 0 else "—",
             delta=_format_pct(ret_pct) if ret_pct is not None else None,
