@@ -7,12 +7,13 @@ import streamlit as st
 _CUSTOM_CSS = """
 <style>
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-/* Inter — Variable wght@100..900 대신 Static weights 만 명시 로드.
-   Variable 은 Google Fonts CDN 으로 들어올 때 일부 weight 매핑이 실패해서
-   브라우저가 Regular 을 합성 볼드로 굵게 덧칠하는 사고가 잦음.
-   Streamlit 라벨이 500, 본문 400, 헤더/메트릭 600~700 을 쓰므로 4개를
-   고정 로드 → 어떤 weight 도 합성되지 않게 함. */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+/* Inter — 라운드 25 까지 Google Fonts CDN 의 wght@... 로 받았는데, Bold (700)
+   woff2 가 들어오지 않아 브라우저가 Regular 을 합성 볼드로 그리는 사고 (DevTools
+   Rendered Fonts 의 'Inter-Regular_Bold' 로 확인됨). Google Fonts 는 트래픽
+   최적화를 위해 unicode-range 로 폰트를 잘게 쪼개 서빙하는데, 이 chunk 가
+   weight 와 엇갈리면 매핑이 깨짐. → Inter 원작자 (Rasmus Andersson) 가 직접
+   운영하는 공식 CDN 으로 교체. @font-face 선언이 깨끗해 합성이 발생 안 함. */
+@import url('https://rsms.me/inter/inter.css');
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined&family=Material+Symbols+Rounded&display=swap');
 
 /* 글로벌 폰트 룰 — DevTools Rendered Fonts 진단으로 확정된 것:
@@ -48,6 +49,20 @@ h1, h2, h3, h4, h5, h6, p, span, div, label {
 
 /* 이모지를 컬러로 렌더 (CSS4) */
 * { font-variant-emoji: emoji; }
+
+/* ---- 메트릭 전용 폰트/weight 강제 (라운드 26 Gemini 보강) ----
+   Streamlit emotion CSS 가 inner element 에 'font-weight: 600' 같은 애매한
+   weight 를 박으면, 우리가 부모에 700 을 걸어도 자식이 600 을 요구하는 사고가
+   생김. 600 weight woff2 가 없으면 합성 볼드 발생. → descendants(*) 까지
+   font-weight: 700 을 명시 강제해 자식 element 의 weight 미스매치를 차단. */
+[data-testid="stMetricValue"],
+[data-testid="stMetricValue"] *,
+[data-testid="stMetricDelta"],
+[data-testid="stMetricDelta"] * {
+    font-family: 'Inter', 'Pretendard', sans-serif !important;
+    font-weight: 700 !important;
+    font-synthesis: none !important;
+}
 
 /* ---- st.metric value 의 폭 강제 해제 (숫자 흩어짐 fix) ----
    진짜 원인이었던 것: column 레이아웃에서 메트릭 카드가 좁아질 때 metric value
