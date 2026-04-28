@@ -209,16 +209,21 @@ span.material-icons,
     letter-spacing: 0.02em;
     margin-bottom: 0.4rem;
 }
+/* cm-value 는 색·크기·무게만. 폰트는 내부 .cm-latin / .cm-hangul span 이 결정.
+   (한 노드에 ASCII + 한글이 섞이지 않도록 ui_components._split_by_script 에서
+   span 분리 → Chrome CJK text shaper 의 전각폭 강제 회피.) */
 .cm-value {
     color: #F1F5F9;
     font-size: 1.65rem;
     font-weight: 700;
     line-height: 1.25;
+    white-space: nowrap;
 }
 .cm-delta {
     font-size: 0.85rem;
     font-weight: 600;
     margin-top: 0.25rem;
+    white-space: nowrap;
 }
 .cm-up { color: #22C55E; }
 .cm-down { color: #EF4444; }
