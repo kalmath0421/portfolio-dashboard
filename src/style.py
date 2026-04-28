@@ -10,9 +10,13 @@ _CUSTOM_CSS = """
 /* Inter 공식 CDN (Rasmus Andersson) — Google Fonts 의 unicode-range 쪼개기
    우회. 합성 볼드 차단. */
 @import url('https://rsms.me/inter/inter.css');
-/* 라운드 34: Roboto Condensed 백업 — 시스템 폰트가 모바일에서 wide 로 그려지는
-   사고 대비. 본질적으로 narrow 한 web font 라 명시적으로 좁아짐. */
+/* 라운드 34: Roboto Condensed 백업. */
 @import url('https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700&display=swap');
+/* 라운드 37: Oswald — Roboto Condensed 보다 더 극단적으로 narrow. 디스플레이용
+   폰트로 디자인되어 있어 메트릭 카드 같은 large display 텍스트에 적합.
+   letter-spacing -0.1em 으로도 시각 변화 미미했던 라운드 36 결과로, 글리프
+   자체가 narrow 한 폰트가 필요하다는 결론. */
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined&family=Material+Symbols+Rounded&display=swap');
 
 /* 글로벌 폰트 룰 — DevTools Rendered Fonts 진단으로 확정된 것:
@@ -234,22 +238,19 @@ span.material-icons,
    [data-testid] span (11) 을 깔끔히 이김. */
 .cm-value .cm-latin,
 .cm-delta .cm-latin {
-    /* 라운드 36: 사용자 정확한 진단 — scaleX 는 장평을 줄였지만 자간 (글자
-       사이 간격) 은 그대로. 사용자는 자간 축소를 원함. transform 제거하고
-       letter-spacing 을 매우 공격적인 값으로 (-0.1em). 26px 디스플레이에서
-       per-char -2.6px = "728,766,333" 11자 = -28px 총 간격 단축 → 디지트
-       사이가 확실히 붙어 보임.
-       Roboto Condensed 는 글리프 자체가 narrow 라 그대로 두면 폭+자간 양쪽
-       타이트. */
-    font-family: 'Roboto Condensed',
+    /* 라운드 37: Oswald 1순위. Roboto Condensed 보다 더 극단적으로 narrow.
+       letter-spacing 만으로는 한계 → 글리프 자체가 좁은 폰트로 교체.
+       디스플레이용 폰트 (sport scoreboard / 신문 제목 느낌) 라 호불호 가능. */
+    font-family: 'Oswald',
+                 'Roboto Condensed',
                  -apple-system, BlinkMacSystemFont,
-                 'Segoe UI', 'Helvetica Neue',
-                 'Inter', 'Roboto', sans-serif !important;
+                 'Segoe UI', sans-serif !important;
     font-variant-numeric: proportional-nums lining-nums !important;
     font-feature-settings: 'pwid' 1, 'fwid' 0, 'pnum' 1, 'tnum' 0,
                            'kern' 1, 'liga' 1 !important;
     font-synthesis: none !important;
-    letter-spacing: -0.1em !important;  /* 라운드 35의 -0.05em → 2배 공격적 */
+    /* Oswald 자체가 narrow 라 letter-spacing 은 약하게 (-0.02em). */
+    letter-spacing: -0.02em !important;
     font-variant-east-asian: normal !important;
     font-stretch: normal !important;
     font-kerning: normal !important;
