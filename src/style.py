@@ -417,8 +417,11 @@ hr {
     margin: 1.25rem 0 !important;
 }
 
-/* ---- 모바일 (768px 이하) ---- */
-@media (max-width: 768px) {
+/* ---- 모바일/태블릿 (1024px 이하) ---- */
+/* 라운드 40: 라운드 39 의 768px breakpoint 가 사용자 device (태블릿/큰폰
+   ~1024px) 에 안 잡힘. 1024px 까지로 broader. 9자리 숫자가 들어갈 수 있는
+   카드 너비 확보가 핵심이므로 조금 큰 화면도 stacking 으로 처리. */
+@media (max-width: 1024px) {
     /* 가로 오버플로우 방지 */
     html, body, [data-testid="stAppViewContainer"] {
         overflow-x: hidden !important;
@@ -430,21 +433,24 @@ hr {
         max-width: 100% !important;
     }
 
-    /* 라운드 39: 모바일에서 st.columns 강제 stacking.
-       데스크탑의 4-col / 3-col 메트릭 카드가 모바일에선 카드당 ~80px 만 확보
-       → 9자리 숫자 (728,766,333 원) 가 절대 안 들어가서 잘리고 줄바꿈.
-       Streamlit 의 stHorizontalBlock 을 column 으로 stacking → 각 카드 full
-       width 확보 → 숫자가 깔끔히 들어감.
-       데스크탑 (>768px) 은 영향 없음 (이 미디어 쿼리 안에서만 적용). */
-    [data-testid="stHorizontalBlock"] {
+    /* st.columns 강제 stacking — 다중 selector 로 Streamlit 버전 호환성 확보.
+       display: flex 도 명시 (혹시 block 으로 떨어진 경우 대비). */
+    [data-testid="stHorizontalBlock"],
+    div[class*="HorizontalBlock"],
+    div.row-widget.stHorizontal {
+        display: flex !important;
         flex-direction: column !important;
         gap: 0.5rem !important;
+        flex-wrap: wrap !important;
     }
     [data-testid="stHorizontalBlock"] > [data-testid="stColumn"],
-    [data-testid="stHorizontalBlock"] > [data-testid="column"] {
+    [data-testid="stHorizontalBlock"] > [data-testid="column"],
+    [data-testid="stHorizontalBlock"] > div,
+    div[class*="HorizontalBlock"] > div {
         width: 100% !important;
-        flex: 1 1 100% !important;
+        max-width: 100% !important;
         min-width: 100% !important;
+        flex: 1 1 100% !important;
     }
 
     /* 카드 폰트 — full width 확보됐으니 좀 키워도 OK */
