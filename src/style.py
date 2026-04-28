@@ -429,16 +429,34 @@ hr {
         padding: 1rem 0.75rem !important;
         max-width: 100% !important;
     }
-    /* 메트릭 카드 폰트 축소 */
+
+    /* 라운드 39: 모바일에서 st.columns 강제 stacking.
+       데스크탑의 4-col / 3-col 메트릭 카드가 모바일에선 카드당 ~80px 만 확보
+       → 9자리 숫자 (728,766,333 원) 가 절대 안 들어가서 잘리고 줄바꿈.
+       Streamlit 의 stHorizontalBlock 을 column 으로 stacking → 각 카드 full
+       width 확보 → 숫자가 깔끔히 들어감.
+       데스크탑 (>768px) 은 영향 없음 (이 미디어 쿼리 안에서만 적용). */
+    [data-testid="stHorizontalBlock"] {
+        flex-direction: column !important;
+        gap: 0.5rem !important;
+    }
+    [data-testid="stHorizontalBlock"] > [data-testid="stColumn"],
+    [data-testid="stHorizontalBlock"] > [data-testid="column"] {
+        width: 100% !important;
+        flex: 1 1 100% !important;
+        min-width: 100% !important;
+    }
+
+    /* 카드 폰트 — full width 확보됐으니 좀 키워도 OK */
     [data-testid="stMetricValue"] {
-        font-size: 1.25rem !important;
+        font-size: 1.4rem !important;
     }
     [data-testid="stMetric"] {
-        padding: 0.75rem 0.85rem !important;
+        padding: 0.85rem 1rem !important;
     }
-    /* 커스텀 메트릭도 같이 축소 */
-    .cm-value { font-size: 1.25rem !important; }
-    .cm-metric { padding: 0.75rem 0.85rem !important; }
+    .cm-value { font-size: 1.4rem !important; }
+    .cm-metric { padding: 0.85rem 1rem !important; }
+
     /* 데이터프레임 가로 스크롤 허용 */
     [data-testid="stDataFrame"] {
         overflow-x: auto !important;
