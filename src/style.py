@@ -7,13 +7,12 @@ import streamlit as st
 _CUSTOM_CSS = """
 <style>
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-/* Inter — 라운드 25 까지 Google Fonts CDN 의 wght@... 로 받았는데, Bold (700)
-   woff2 가 들어오지 않아 브라우저가 Regular 을 합성 볼드로 그리는 사고 (DevTools
-   Rendered Fonts 의 'Inter-Regular_Bold' 로 확인됨). Google Fonts 는 트래픽
-   최적화를 위해 unicode-range 로 폰트를 잘게 쪼개 서빙하는데, 이 chunk 가
-   weight 와 엇갈리면 매핑이 깨짐. → Inter 원작자 (Rasmus Andersson) 가 직접
-   운영하는 공식 CDN 으로 교체. @font-face 선언이 깨끗해 합성이 발생 안 함. */
+/* Inter 공식 CDN (Rasmus Andersson) — Google Fonts 의 unicode-range 쪼개기
+   우회. 합성 볼드 차단. */
 @import url('https://rsms.me/inter/inter.css');
+/* 라운드 34: Roboto Condensed 백업 — 시스템 폰트가 모바일에서 wide 로 그려지는
+   사고 대비. 본질적으로 narrow 한 web font 라 명시적으로 좁아짐. */
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined&family=Material+Symbols+Rounded&display=swap');
 
 /* 글로벌 폰트 룰 — DevTools Rendered Fonts 진단으로 확정된 것:
@@ -235,19 +234,24 @@ span.material-icons,
    [data-testid] span (11) 을 깔끔히 이김. */
 .cm-value .cm-latin,
 .cm-delta .cm-latin {
-    /* SF Pro (Mac/iOS) / Segoe UI (Windows) 우선. Inter 는 fallback. */
-    font-family: -apple-system, BlinkMacSystemFont,
+    /* 라운드 34: Roboto Condensed 를 1순위로 — 본질적으로 narrow 한 web font.
+       SF Pro / 시스템 폰트가 모바일에서 wide 로 보이는 사고 회피. */
+    font-family: 'Roboto Condensed',
+                 -apple-system, BlinkMacSystemFont,
                  'Segoe UI', 'Helvetica Neue',
                  'Inter', 'Roboto', sans-serif !important;
     font-variant-numeric: proportional-nums lining-nums !important;
-    font-feature-settings: 'pnum' 1, 'kern' 1 !important;
+    /* fwid 0 명시 — CJK 폰트가 lang=ko 환경에서 ASCII 를 fullwidth (전각) 로
+       강제 늘리는 사고 차단. pnum 1 만으로는 fwid 가 자동 꺼지지 않음. */
+    font-feature-settings: 'pwid' 1, 'fwid' 0, 'pnum' 1, 'tnum' 0,
+                           'kern' 1, 'liga' 1 !important;
     font-synthesis: none !important;
-    /* 라운드 33: SF Pro 가 그려져도 26px 디스플레이 사이즈에선 디지트 advance
-       가 visible. 광학 보정 위해 -0.05em 트래킹 (Gemini 권장의 강한 끝). */
-    letter-spacing: -0.05em !important;
+    /* 디스플레이 사이즈 광학 보정. */
+    letter-spacing: -0.03em !important;
     font-variant-east-asian: normal !important;
-    /* 한 번 더 — 모든 폰트가 "wide" 변종이 아닌 정상 너비로 그려지게 강제. */
     font-stretch: normal !important;
+    font-kerning: normal !important;
+    text-rendering: optimizeLegibility !important;
 }
 .cm-value .cm-hangul,
 .cm-delta .cm-hangul {
