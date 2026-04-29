@@ -115,6 +115,13 @@ def main() -> None:
     # 비밀번호 게이트 — DB 미등록이면 등록, 등록 후엔 로그인. 통과 못 하면 st.stop.
     auth.require_auth()
 
+    # 이 세션에서 시세 자동 갱신 1회 — "살아있는" 느낌을 위해 로그인 직후 호출.
+    # 페이지 새로고침/탭 새로 열면 다시 호출되지만, 한 세션 내 페이지 이동에선 캐시 사용.
+    if not st.session_state.get("prices_auto_fetched"):
+        with st.spinner("시세·환율 조회 중..."):
+            summary.refresh_prices()
+        st.session_state["prices_auto_fetched"] = True
+
     page_registry = _build_page_registry()
     selected = _sidebar(page_registry)
 

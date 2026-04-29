@@ -357,19 +357,32 @@ def _fy_tax_panel(s: dict) -> None:
     )
 
 
+def refresh_prices(holdings=None) -> bool:
+    """시세·환율을 라이브 호출해서 session_state 에 캐시.
+
+    holdings 가 None 이면 활성 보유 종목 전체를 자동 조회.
+    로그인 직후 자동 호출과 사용자 버튼 호출 양쪽에서 공유.
+    Returns: 실제 호출했으면 True.
+    """
+    if holdings is None:
+        holdings = db.list_holdings(active_only=True)
+    if not holdings:
+        return False
+    price_cache: dict = {}
+    for h in holdings:
+        key = (h["ticker"], h["currency"])
+        if key not in price_cache:
+            price_cache[key] = prices.get_price(h["ticker"], h["currency"])
+    st.session_state["price_cache"] = price_cache
+    st.session_state["fx_cache"] = prices.get_usdkrw()
+    st.session_state["prices_fetched_at"] = datetime.now()
+    return True
+
+
 def _refresh_button(holdings) -> None:
     if st.button("🔄 시세 갱신", key="summary_refresh"):
         with st.spinner("시세·환율 조회 중..."):
-            price_cache: dict = {}
-            for h in holdings:
-                key = (h["ticker"], h["currency"])
-                if key in price_cache:
-                    continue
-                price_cache[key] = prices.get_price(h["ticker"], h["currency"])
-            st.session_state["price_cache"] = price_cache
-            st.session_state["fx_cache"] = prices.get_usdkrw()
-            # 라이브 호출 시각 — 일일 P&L 카드의 "기준" 캡션에 사용.
-            st.session_state["prices_fetched_at"] = datetime.now()
+            refresh_prices(holdings)
         st.rerun()
 
 
@@ -451,9 +464,13 @@ def render() -> None:
     if s["fx_cache"]:
         fx = s["fx_cache"]
         stale_note = " · ⚠️ 갱신 필요" if fx.is_stale else ""
+        fetched_at = st.session_state.get("prices_fetched_at")
+        fetched_note = (
+            f" · 갱신 {fetched_at:%Y-%m-%d %H:%M}" if fetched_at else ""
+        )
         st.caption(
             f"💱 **환율 USD/KRW = {fx.rate:,.2f}원** "
-            f"· 기준일 {fx.as_of} · 출처 {fx.source}{stale_note}"
+            f"· 기준일 {fx.as_of} · 출처 {fx.source}{fetched_note}{stale_note}"
         )
 
     st.divider()

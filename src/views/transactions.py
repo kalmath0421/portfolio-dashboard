@@ -9,7 +9,7 @@ import pandas as pd
 import streamlit as st
 import yaml
 
-from src import db, profile_config, tax
+from src import analytics, db, profile_config, tax
 from src.views import holdings_admin
 
 
@@ -364,6 +364,15 @@ def _trade_form() -> None:
                     if final_fee > 0
                     else "수수료 0원 (계좌 기본 율 0% 또는 USD 환율 미입력)"
                 )
+            # 매도라면 저장 전후 누적 실현손익을 비교해 이번 매도의 P/L 산출.
+            realized_before = None
+            if side == "SELL":
+                state_before = analytics.load_states_from_db(
+                    account_id=acct_id
+                ).get((acct_id, ticker))
+                realized_before = (
+                    state_before.realized_pnl_krw if state_before else 0
+                )
             try:
                 tx_id = db.add_transaction(
                     trade_date=trade_date_val.isoformat(),
@@ -377,7 +386,28 @@ def _trade_form() -> None:
                     fee=final_fee,
                     note=note or None,
                 )
-                st.success(f"✅ 거래 등록 (#{tx_id}) — {fee_msg}")
+                pnl_msg = ""
+                if side == "SELL" and realized_before is not None:
+                    state_after = analytics.load_states_from_db(
+                        account_id=acct_id
+                    ).get((acct_id, ticker))
+                    realized_after = (
+                        state_after.realized_pnl_krw if state_after else 0
+                    )
+                    pnl = float(realized_after) - float(realized_before)
+                    sell_value_krw = (
+                        quantity * price * (fx_rate or 1.0)
+                        if ticker_currency == "USD"
+                        else quantity * price
+                    )
+                    pct = (pnl / sell_value_krw * 100) if sell_value_krw else 0
+                    sign = "+" if pnl >= 0 else ""
+                    icon = "📈" if pnl >= 0 else "📉"
+                    pnl_msg = (
+                        f" · {icon} 실현손익 {sign}{int(round(pnl)):,}원 "
+                        f"({sign}{pct:.2f}%)"
+                    )
+                st.success(f"✅ 거래 등록 (#{tx_id}) — {fee_msg}{pnl_msg}")
                 st.rerun()
             except sqlite3.IntegrityError:
                 st.error(
@@ -495,12 +525,104 @@ def _recent_transactions_panel(key_prefix: str = "") -> None:
         st.info("아직 입력된 거래가 없습니다.")
         return
     df = pd.DataFrame([dict(r) for r in rows])
+    # 매도 거래별 실현손익(KRW). 매수 행은 None.
+    pnl_map = analytics.realized_pnl_by_tx_id()
+    df["realized_pnl_krw"] = df.apply(
+        lambda r: int(round(float(pnl_map.get(int(r["id"]), 0))))
+        if r["side"] == "SELL" and int(r["id"]) in pnl_map
+        else None,
+        axis=1,
+    )
     df = df[[
         "id", "trade_date", "account_name", "ticker", "ticker_name",
-        "side", "quantity", "price", "currency", "fx_rate", "fee", "note",
+        "side", "quantity", "price", "currency", "fx_rate", "fee",
+        "realized_pnl_krw", "note",
     ]]
     df["side"] = df["side"].map({"BUY": "🟢 매수", "SELL": "🔴 매도"})
+    df = df.rename(columns={"realized_pnl_krw": "실현손익(원)"})
     st.dataframe(df, use_container_width=True, hide_index=True)
+
+    with st.expander("🛠 거래 수정"):
+        edit_id = st.number_input(
+            "수정할 거래 ID",
+            min_value=0, step=1, key=f"edit_tx_id_{key_prefix}",
+        )
+        if edit_id > 0:
+            tx = db.get_transaction(int(edit_id))
+            if tx is None:
+                st.error(f"거래 #{edit_id} 를 찾을 수 없습니다.")
+            else:
+                st.caption(
+                    f"📌 **{tx['account_name']} / {tx['ticker']} "
+                    f"({tx['ticker_name'] or '-'}) · {tx['currency']}** — "
+                    "계좌·티커·통화는 변경 불가 (변경하려면 삭제 후 재입력)."
+                )
+                with st.form(f"edit_tx_form_{key_prefix}"):
+                    e1, e2, e3 = st.columns(3)
+                    with e1:
+                        e_date = st.date_input(
+                            "거래일",
+                            value=date.fromisoformat(tx["trade_date"]),
+                            key=f"edit_tx_date_{key_prefix}",
+                        )
+                        e_side = st.radio(
+                            "구분",
+                            options=["BUY", "SELL"],
+                            index=0 if tx["side"] == "BUY" else 1,
+                            format_func=lambda s: "매수" if s == "BUY" else "매도",
+                            horizontal=True,
+                            key=f"edit_tx_side_{key_prefix}",
+                        )
+                    with e2:
+                        e_qty = st.number_input(
+                            "수량", min_value=0.0, step=1.0,
+                            value=float(tx["quantity"]), format="%.4f",
+                            key=f"edit_tx_qty_{key_prefix}",
+                        )
+                        e_price = st.number_input(
+                            f"단가 ({tx['currency']})",
+                            min_value=0.0, step=1.0,
+                            value=float(tx["price"]), format="%.4f",
+                            key=f"edit_tx_price_{key_prefix}",
+                        )
+                    with e3:
+                        if tx["currency"] == "USD":
+                            e_fx = st.number_input(
+                                "거래 시점 환율 (USDKRW)",
+                                min_value=0.0, step=1.0,
+                                value=float(tx["fx_rate"] or 0),
+                                format="%.2f",
+                                key=f"edit_tx_fx_{key_prefix}",
+                            )
+                        else:
+                            e_fx = None
+                        e_fee = st.number_input(
+                            "수수료 (원화)",
+                            min_value=0.0, step=100.0,
+                            value=float(tx["fee"] or 0),
+                            format="%.0f",
+                            key=f"edit_tx_fee_{key_prefix}",
+                        )
+                    e_note = st.text_input(
+                        "메모", value=tx["note"] or "",
+                        key=f"edit_tx_note_{key_prefix}",
+                    )
+                    if st.form_submit_button("💾 수정 저장", type="primary"):
+                        try:
+                            db.update_transaction(
+                                transaction_id=int(edit_id),
+                                trade_date=e_date.isoformat(),
+                                side=e_side,
+                                quantity=e_qty,
+                                price=e_price,
+                                fx_rate=e_fx if tx["currency"] == "USD" else None,
+                                fee=e_fee,
+                                note=e_note or None,
+                            )
+                            st.success(f"✅ 거래 #{edit_id} 수정 완료")
+                            st.rerun()
+                        except ValueError as e:
+                            st.error(f"❌ {e}")
 
     with st.expander("🗑 거래 삭제 (잘못 입력했을 때)"):
         del_id = st.number_input("삭제할 거래 ID", min_value=0, step=1, key=f"del_tx_id_{key_prefix}")
@@ -524,6 +646,77 @@ def _recent_dividends_panel() -> None:
         "fx_rate", "gross_krw", "net_krw", "note",
     ]]
     st.dataframe(df, use_container_width=True, hide_index=True)
+
+    with st.expander("🛠 분배금 수정"):
+        edit_id = st.number_input(
+            "수정할 분배금 ID", min_value=0, step=1, key="edit_div_id"
+        )
+        if edit_id > 0:
+            div = db.get_dividend(int(edit_id))
+            if div is None:
+                st.error(f"분배금 #{edit_id} 를 찾을 수 없습니다.")
+            else:
+                st.caption(
+                    f"📌 **{div['account_name']} / {div['ticker']} "
+                    f"({div['ticker_name'] or '-'}) · {div['currency']}** — "
+                    "계좌·티커·통화는 변경 불가."
+                )
+                with st.form("edit_div_form"):
+                    c1, c2, c3 = st.columns(3)
+                    with c1:
+                        e_date = st.date_input(
+                            "지급일",
+                            value=date.fromisoformat(div["pay_date"]),
+                            key="edit_div_date",
+                        )
+                    with c2:
+                        e_gross = st.number_input(
+                            "세전 (현지통화)", min_value=0.0, step=1.0,
+                            value=float(div["gross_amount"]), format="%.4f",
+                            key="edit_div_gross",
+                        )
+                        e_with = st.number_input(
+                            "원천징수 (현지통화)", min_value=0.0, step=1.0,
+                            value=float(div["withholding_tax"] or 0),
+                            format="%.4f", key="edit_div_with",
+                        )
+                    with c3:
+                        e_net = st.number_input(
+                            "실입금액 (세후, 현지통화)",
+                            min_value=0.0, step=1.0,
+                            value=float(div["net_amount"] or 0),
+                            format="%.4f", key="edit_div_net",
+                        )
+                        if div["currency"] == "USD":
+                            e_fx = st.number_input(
+                                "환율 (USDKRW)", min_value=0.0, step=1.0,
+                                value=float(div["fx_rate"] or 0),
+                                format="%.2f", key="edit_div_fx",
+                            )
+                        else:
+                            e_fx = None
+                    e_note = st.text_input(
+                        "메모", value=div["note"] or "", key="edit_div_note",
+                    )
+                    if st.form_submit_button("💾 수정 저장", type="primary"):
+                        # add_dividend 와 동일하게 net 미입력 시 자동 보정
+                        effective_net = (
+                            e_net if e_net > 0 else max(e_gross - e_with, 0.0)
+                        )
+                        try:
+                            db.update_dividend(
+                                dividend_id=int(edit_id),
+                                pay_date=e_date.isoformat(),
+                                gross_amount=e_gross,
+                                net_amount=effective_net,
+                                withholding_tax=e_with,
+                                fx_rate=e_fx,
+                                note=e_note or None,
+                            )
+                            st.success(f"✅ 분배금 #{edit_id} 수정 완료")
+                            st.rerun()
+                        except ValueError as e:
+                            st.error(f"❌ {e}")
 
     with st.expander("🗑 분배금 삭제"):
         del_id = st.number_input("삭제할 분배금 ID", min_value=0, step=1, key="del_div_id")

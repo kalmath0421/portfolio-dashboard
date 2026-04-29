@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Iterable
+from typing import Callable, Iterable
 
 from src import db
 
@@ -39,12 +39,15 @@ def _empty_state(ticker: str, account_id: int, currency: str) -> PositionState:
 def replay_positions(
     transactions: Iterable[dict],
     dividends: Iterable[dict] | None = None,
+    on_sell: Callable[[dict, Decimal], None] | None = None,
 ) -> dict[tuple[int, str], PositionState]:
     """거래내역을 시간순으로 재생해 종목별 (account_id, ticker) 상태 산출.
 
     - transactions: 'trade_date', 'account_id', 'ticker', 'side', 'quantity',
                     'price', 'currency', 'fx_rate', 'fee' (KRW)
     - dividends: 'pay_date', 'account_id', 'ticker', 'gross_krw', 'net_krw'
+    - on_sell: 매도 거래마다 (tx_dict, realized_pnl_krw) 로 호출되는 콜백.
+               거래목록에 거래별 P/L 컬럼 표시할 때 사용.
     """
     states: dict[tuple[int, str], PositionState] = {}
 
@@ -107,6 +110,8 @@ def replay_positions(
                 state.avg_cost_local = D(0)
                 state.avg_cost_fx = D(0)
                 state.cumulative_buy_fee_krw = D(0)
+            if on_sell is not None:
+                on_sell(tx, realized)
         else:
             raise ValueError(f"unknown side: {tx['side']}")
 
@@ -338,6 +343,29 @@ def fx_attribution_usd(
 
 
 # --- DB 통합 헬퍼 ---
+
+def realized_pnl_by_tx_id() -> dict[int, Decimal]:
+    """전 종목 거래 replay 후 매도 거래 id → 실현손익(KRW) 매핑.
+
+    거래 목록 테이블에 거래별 P/L 컬럼을 표시하기 위해 사용.
+    """
+    sql_tx = """
+        SELECT id, trade_date, account_id, ticker, side, quantity, price,
+               currency, fx_rate, fee
+        FROM transactions
+    """
+    with db.transaction() as conn:
+        tx_rows = [dict(r) for r in conn.execute(sql_tx).fetchall()]
+
+    pnl_by_id: dict[int, Decimal] = {}
+
+    def _record(tx: dict, realized: Decimal) -> None:
+        if tx.get("id") is not None:
+            pnl_by_id[int(tx["id"])] = realized
+
+    replay_positions(tx_rows, on_sell=_record)
+    return pnl_by_id
+
 
 def load_states_from_db(account_id: int | None = None) -> dict[tuple[int, str], PositionState]:
     """DB의 transactions/dividends를 읽어 현재 포지션 상태 산출."""

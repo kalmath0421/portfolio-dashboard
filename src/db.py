@@ -856,6 +856,53 @@ def delete_transaction(transaction_id: int) -> None:
         conn.execute("DELETE FROM transactions WHERE id = ?", (transaction_id,))
 
 
+def get_transaction(transaction_id: int) -> sqlite3.Row | None:
+    with transaction() as conn:
+        return conn.execute(
+            """
+            SELECT t.*, a.name AS account_name, h.name AS ticker_name
+            FROM transactions t
+            JOIN accounts a ON a.account_id = t.account_id
+            LEFT JOIN holdings h ON h.account_id = t.account_id
+                AND h.ticker = t.ticker
+            WHERE t.id = ?
+            """,
+            (transaction_id,),
+        ).fetchone()
+
+
+def update_transaction(
+    transaction_id: int,
+    trade_date: str,
+    side: str,
+    quantity: float,
+    price: float,
+    fx_rate: float | None,
+    fee: float,
+    note: str | None,
+) -> None:
+    """거래 수정. 계좌·티커·통화는 변경 불가 (변경하려면 삭제 후 재입력)."""
+    if side not in ("BUY", "SELL"):
+        raise ValueError(f"invalid side: {side}")
+    if quantity <= 0 or price <= 0:
+        raise ValueError("quantity and price must be > 0")
+    with transaction() as conn:
+        if not conn.execute(
+            "SELECT 1 FROM transactions WHERE id = ?", (transaction_id,)
+        ).fetchone():
+            raise ValueError(f"transaction_id {transaction_id} not found")
+        conn.execute(
+            """
+            UPDATE transactions
+            SET trade_date = ?, side = ?, quantity = ?, price = ?,
+                fx_rate = ?, fee = ?, note = ?
+            WHERE id = ?
+            """,
+            (trade_date, side, quantity, price, fx_rate, fee, note,
+             transaction_id),
+        )
+
+
 # --- 분배금/배당금 CRUD ---
 
 def add_dividend(
@@ -932,6 +979,61 @@ def list_dividends(
 def delete_dividend(dividend_id: int) -> None:
     with transaction() as conn:
         conn.execute("DELETE FROM dividends WHERE id = ?", (dividend_id,))
+
+
+def get_dividend(dividend_id: int) -> sqlite3.Row | None:
+    with transaction() as conn:
+        return conn.execute(
+            """
+            SELECT d.*, a.name AS account_name, h.name AS ticker_name
+            FROM dividends d
+            JOIN accounts a ON a.account_id = d.account_id
+            LEFT JOIN holdings h ON h.account_id = d.account_id
+                AND h.ticker = d.ticker
+            WHERE d.id = ?
+            """,
+            (dividend_id,),
+        ).fetchone()
+
+
+def update_dividend(
+    dividend_id: int,
+    pay_date: str,
+    gross_amount: float,
+    net_amount: float,
+    withholding_tax: float,
+    fx_rate: float | None,
+    note: str | None,
+) -> None:
+    """분배금 수정. 계좌·티커·통화는 변경 불가."""
+    if gross_amount <= 0:
+        raise ValueError("gross_amount must be > 0")
+    with transaction() as conn:
+        row = conn.execute(
+            "SELECT currency FROM dividends WHERE id = ?", (dividend_id,)
+        ).fetchone()
+        if not row:
+            raise ValueError(f"dividend_id {dividend_id} not found")
+        currency = row["currency"]
+        if currency == "USD":
+            if fx_rate is None or fx_rate <= 0:
+                raise ValueError("USD 분배금은 환율이 필요합니다")
+            gross_krw = gross_amount * fx_rate
+            net_krw = net_amount * fx_rate
+        else:
+            gross_krw = gross_amount
+            net_krw = net_amount
+        conn.execute(
+            """
+            UPDATE dividends
+            SET pay_date = ?, gross_amount = ?, net_amount = ?,
+                withholding_tax = ?, fx_rate = ?, gross_krw = ?, net_krw = ?,
+                note = ?
+            WHERE id = ?
+            """,
+            (pay_date, gross_amount, net_amount, withholding_tax, fx_rate,
+             gross_krw, net_krw, note, dividend_id),
+        )
 
 
 def find_unregistered_tickers(
