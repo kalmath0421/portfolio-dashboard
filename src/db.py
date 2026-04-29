@@ -80,7 +80,8 @@ CREATE TABLE IF NOT EXISTS holdings (
         'overseas_equity_etf_kr_listed',
         'money_market_etf',
         'us_stock',
-        'kr_stock'
+        'kr_stock',
+        'krx_gold'
     )),
     currency TEXT NOT NULL CHECK (currency IN ('KRW', 'USD')),
     is_active INTEGER NOT NULL DEFAULT 1,
@@ -255,6 +256,7 @@ def init_schema() -> None:
         _migrate_add_column_if_missing(
             conn, "price_snapshots", "previous_close", "REAL",
         )
+        _migrate_holdings_category_check(conn)
 
 
 def _migrate_add_column_if_missing(
@@ -263,6 +265,47 @@ def _migrate_add_column_if_missing(
     cols = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
     if column not in cols:
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+
+
+def _migrate_holdings_category_check(conn: sqlite3.Connection) -> None:
+    """holdings.category CHECK 제약에 새 카테고리(krx_gold 등)가 빠진 옛 DB 자동 갱신.
+
+    SQLite는 CHECK 제약을 ALTER TABLE 로 바꿀 수 없어 테이블을 재생성한다.
+    데이터는 그대로 보존, 인덱스도 SCHEMA_SQL 의 CREATE INDEX IF NOT EXISTS 가
+    재생성한다.
+    """
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='holdings'"
+    ).fetchone()
+    if not row or not row["sql"]:
+        return
+    if "'krx_gold'" in row["sql"]:
+        return
+    conn.executescript("""
+        PRAGMA foreign_keys=OFF;
+        CREATE TABLE holdings_new (
+            ticker TEXT NOT NULL,
+            account_id INTEGER NOT NULL REFERENCES accounts(account_id) ON DELETE RESTRICT,
+            name TEXT NOT NULL,
+            category TEXT NOT NULL CHECK (category IN (
+                'domestic_equity_etf',
+                'overseas_equity_etf_kr_listed',
+                'money_market_etf',
+                'us_stock',
+                'kr_stock',
+                'krx_gold'
+            )),
+            currency TEXT NOT NULL CHECK (currency IN ('KRW', 'USD')),
+            is_active INTEGER NOT NULL DEFAULT 1,
+            added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            note TEXT,
+            PRIMARY KEY (ticker, account_id)
+        );
+        INSERT INTO holdings_new SELECT * FROM holdings;
+        DROP TABLE holdings;
+        ALTER TABLE holdings_new RENAME TO holdings;
+        PRAGMA foreign_keys=ON;
+    """)
 
 
 def has_money_market_etf() -> bool:

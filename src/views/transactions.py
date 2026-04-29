@@ -234,11 +234,19 @@ def _combined_new_holding_form() -> None:
                         f"✅ 기존 종목 {ticker.upper()} 에 거래 #{tx_id} 추가 (마스터는 그대로) — {fee_msg}"
                     )
                 st.rerun()
-            except sqlite3.IntegrityError:
-                st.error(
-                    "❌ 같은 (날짜, 계좌, 티커, BUY, 수량, 단가) 조합이 이미 있습니다. "
-                    "이미 등록했거나, 기준일을 다른 날짜로 변경해 주세요."
-                )
+            except sqlite3.IntegrityError as e:
+                msg = str(e)
+                if "CHECK constraint" in msg:
+                    st.error(
+                        f"❌ DB 제약 위반 (스키마 마이그레이션 누락 가능): {msg}"
+                    )
+                elif "UNIQUE constraint" in msg:
+                    st.error(
+                        "❌ 같은 (날짜, 계좌, 티커, BUY, 수량, 단가) 조합이 이미 있습니다. "
+                        "이미 등록했거나, 기준일을 다른 날짜로 변경해 주세요."
+                    )
+                else:
+                    st.error(f"❌ {msg}")
             except ValueError as e:
                 st.error(f"❌ {e}")
 
@@ -409,10 +417,18 @@ def _trade_form() -> None:
                     )
                 st.success(f"✅ 거래 등록 (#{tx_id}) — {fee_msg}{pnl_msg}")
                 st.rerun()
-            except sqlite3.IntegrityError:
-                st.error(
-                    "❌ 같은 (날짜, 계좌, 티커, 구분, 수량, 단가) 조합이 이미 있습니다."
-                )
+            except sqlite3.IntegrityError as e:
+                msg = str(e)
+                if "CHECK constraint" in msg:
+                    st.error(
+                        f"❌ DB 제약 위반 (스키마 마이그레이션 누락 가능): {msg}"
+                    )
+                elif "UNIQUE constraint" in msg:
+                    st.error(
+                        "❌ 같은 (날짜, 계좌, 티커, 구분, 수량, 단가) 조합이 이미 있습니다."
+                    )
+                else:
+                    st.error(f"❌ {msg}")
             except ValueError as e:
                 st.error(f"❌ {e}")
 
