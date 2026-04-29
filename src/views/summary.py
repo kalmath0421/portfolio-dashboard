@@ -291,21 +291,71 @@ def _contribution_panel(valuations: list[analytics.HoldingValuation]) -> None:
         st.dataframe(df_bot, use_container_width=True, hide_index=True)
 
 
-def _allocation_donut(valuations: list[analytics.HoldingValuation]) -> None:
-    chart_data = [
-        (v.ticker, float(v.market_value_krw))
+def _allocation_donut(
+    valuations: list[analytics.HoldingValuation],
+    holdings: list,
+) -> None:
+    """corp 모드는 법인/개인 도넛 2개, personal 모드는 1개. 라벨은 종목명."""
+    # (account_id, ticker) → 종목명, account_id → kind 매핑
+    name_map = {(h["account_id"], h["ticker"]): h["name"] for h in holdings}
+    kind_map = {h["account_id"]: h["kind"] for h in holdings}
+
+    rows = [
+        {
+            "name": name_map.get((v.account_id, v.ticker), v.ticker),
+            "kind": kind_map.get(v.account_id),
+            "market_value_krw": float(v.market_value_krw),
+        }
         for v in valuations
         if v.market_value_krw is not None and v.market_value_krw > 0
     ]
-    if not chart_data:
+    if not rows:
         return
 
     st.subheader("🥯 종목별 비중")
-    df = pd.DataFrame(chart_data, columns=["ticker", "market_value_krw"])
-    df = df.sort_values("market_value_krw", ascending=False)
+    df_all = pd.DataFrame(rows)
 
+    # 같은 종목명이 여러 계좌에 있으면 합산해서 한 조각으로.
+    def _agg(d: pd.DataFrame) -> pd.DataFrame:
+        return (
+            d.groupby("name", as_index=False)["market_value_krw"]
+            .sum()
+            .sort_values("market_value_krw", ascending=False)
+        )
+
+    if profile_config.is_corp():
+        df_corp = _agg(df_all[df_all["kind"] == db.KIND_CORP])
+        df_personal = _agg(df_all[df_all["kind"] == db.KIND_PERSONAL])
+        c1, c2 = st.columns(2)
+        with c1:
+            st.caption("🏢 법인")
+            if df_corp.empty:
+                st.info("법인 계좌 보유 종목이 없습니다.")
+            else:
+                st.plotly_chart(
+                    _build_donut(df_corp), use_container_width=True,
+                    key="donut_corp",
+                )
+        with c2:
+            st.caption("👤 개인")
+            if df_personal.empty:
+                st.info("개인 계좌 보유 종목이 없습니다.")
+            else:
+                st.plotly_chart(
+                    _build_donut(df_personal), use_container_width=True,
+                    key="donut_personal",
+                )
+        return
+
+    df = _agg(df_all)
+    st.plotly_chart(
+        _build_donut(df), use_container_width=True, key="donut_all",
+    )
+
+
+def _build_donut(df: pd.DataFrame) -> go.Figure:
     fig = go.Figure(data=[go.Pie(
-        labels=df["ticker"],
+        labels=df["name"],
         values=df["market_value_krw"],
         hole=0.55,
         textinfo="label+percent",
@@ -327,7 +377,7 @@ def _allocation_donut(valuations: list[analytics.HoldingValuation]) -> None:
         margin=dict(l=0, r=0, t=20, b=20),
         showlegend=False,
     )
-    st.plotly_chart(fig, use_container_width=True)
+    return fig
 
 
 def _fy_tax_panel(s: dict) -> None:
@@ -550,7 +600,7 @@ def render() -> None:
     _contribution_panel(s["valuations"])
 
     st.divider()
-    _allocation_donut(s["valuations"])
+    _allocation_donut(s["valuations"], s["holdings"])
 
     st.divider()
     _fy_tax_panel(s)
