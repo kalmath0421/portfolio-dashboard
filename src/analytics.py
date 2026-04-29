@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
+from datetime import date
 from decimal import Decimal
 from typing import Callable, Iterable
 
@@ -343,6 +344,46 @@ def fx_attribution_usd(
 
 
 # --- DB 통합 헬퍼 ---
+
+def realized_pnl_in_period(
+    start: date | None = None,
+    end: date | None = None,
+    account_kind: str | None = None,
+) -> Decimal:
+    """매도 거래 실현손익(KRW) 합계 — 기간/계좌종류로 필터.
+
+    - start/end: 거래일 기준 [start, end] 포함. None 이면 무한.
+    - account_kind: db.KIND_CORP / db.KIND_PERSONAL / None(전체).
+
+    평균단가 정확도를 위해 모든 거래를 replay 한 뒤 콜백에서 필터링한다
+    (kind 로 사전 필터하면 평균단가가 깨짐).
+    """
+    sql_tx = """
+        SELECT t.id, t.trade_date, t.account_id, t.ticker, t.side,
+               t.quantity, t.price, t.currency, t.fx_rate, t.fee,
+               a.kind AS _kind
+        FROM transactions t
+        JOIN accounts a ON a.account_id = t.account_id
+    """
+    with db.transaction() as conn:
+        tx_rows = [dict(r) for r in conn.execute(sql_tx).fetchall()]
+
+    total = Decimal(0)
+
+    def _collect(tx: dict, realized: Decimal) -> None:
+        nonlocal total
+        if account_kind and tx.get("_kind") != account_kind:
+            return
+        d = date.fromisoformat(str(tx["trade_date"])[:10])
+        if start and d < start:
+            return
+        if end and d > end:
+            return
+        total += realized
+
+    replay_positions(tx_rows, on_sell=_collect)
+    return total
+
 
 def realized_pnl_by_tx_id() -> dict[int, Decimal]:
     """전 종목 거래 replay 후 매도 거래 id → 실현손익(KRW) 매핑.

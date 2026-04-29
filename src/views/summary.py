@@ -357,6 +357,74 @@ def _fy_tax_panel(s: dict) -> None:
     )
 
 
+def _realized_pnl_cards() -> None:
+    """매도 실현손익 카드 — corp 모드는 법인 사업연도 + 개인 YTD,
+    personal 모드는 개인 YTD 한 장. 누적 (전체 기간) 은 캡션으로 동반.
+    """
+    today = date.today()
+    ytd_start = date(today.year, 1, 1)
+
+    is_corp = profile_config.is_corp()
+
+    if is_corp:
+        # 법인 사업연도 — tax_rules.yaml 의 결산월 기준
+        fy_start, fy_end = ytd_start, today
+        try:
+            if _TAX_RULES_PATH.exists():
+                rules = tax.TaxRules.from_yaml(_TAX_RULES_PATH)
+                fy_int = tax.fiscal_year_of(today, rules.fiscal_year_end_month)
+                fy_start, fy_end_full = tax.fiscal_year_bounds(
+                    fy_int, rules.fiscal_year_end_month
+                )
+                fy_end = min(today, fy_end_full)
+        except Exception:
+            pass
+
+        corp_period = analytics.realized_pnl_in_period(
+            fy_start, fy_end, account_kind=db.KIND_CORP
+        )
+        corp_total = analytics.realized_pnl_in_period(
+            account_kind=db.KIND_CORP
+        )
+        personal_period = analytics.realized_pnl_in_period(
+            ytd_start, today, account_kind=db.KIND_PERSONAL
+        )
+        personal_total = analytics.realized_pnl_in_period(
+            account_kind=db.KIND_PERSONAL
+        )
+
+        c1, c2 = st.columns(2)
+        with c1:
+            ui_components.metric(
+                "🏢 법인 사업연도 실현손익",
+                _format_signed_krw(corp_period),
+                help=f"기간: {fy_start} ~ {fy_end} · 매도 거래 합계.",
+            )
+            st.caption(f"누적 (전체 기간): {_format_signed_krw(corp_total)}")
+        with c2:
+            ui_components.metric(
+                "👤 개인 올해(YTD) 실현손익",
+                _format_signed_krw(personal_period),
+                help=f"기간: {ytd_start} ~ {today} · 매도 거래 합계.",
+            )
+            st.caption(
+                f"누적 (전체 기간): {_format_signed_krw(personal_total)}"
+            )
+    else:
+        personal_period = analytics.realized_pnl_in_period(
+            ytd_start, today, account_kind=db.KIND_PERSONAL
+        )
+        personal_total = analytics.realized_pnl_in_period(
+            account_kind=db.KIND_PERSONAL
+        )
+        ui_components.metric(
+            "💰 올해(YTD) 실현손익",
+            _format_signed_krw(personal_period),
+            help=f"기간: {ytd_start} ~ {today} · 매도 거래 합계.",
+        )
+        st.caption(f"누적 (전체 기간): {_format_signed_krw(personal_total)}")
+
+
 def refresh_prices(holdings=None) -> bool:
     """시세·환율을 라이브 호출해서 session_state 에 캐시.
 
@@ -460,6 +528,8 @@ def render() -> None:
                 "수익률 = 총수익 / 매입원가 × 100."
             ),
         )
+
+    _realized_pnl_cards()
 
     if s["fx_cache"]:
         fx = s["fx_cache"]
