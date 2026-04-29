@@ -178,6 +178,48 @@ def _fetch_kr_price(
         return None
 
 
+def _fetch_krx_gold_price(
+    ticker: str,
+) -> tuple[float, date, float | None] | None:
+    """KRX 금현물 시세 — 네이버 금융 marketindex 페이지 스크래핑.
+
+    pykrx/KRX 공식 API 모두 막혀있어 네이버 marketindex 페이지를 직접 파싱한다.
+    페이지에 KRX 1g 종가가 21만원대 숫자로 단일 표시되는 패턴을 사용.
+    previous_close 는 페이지에 직접 노출되지 않으므로 None 반환.
+    """
+    import re
+    import urllib.request
+
+    UA = (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
+    )
+    url = "https://finance.naver.com/marketindex/?tabSel=gold"
+    try:
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": UA,
+                "Referer": "https://www.naver.com/",
+                "Accept": "text/html,application/xhtml+xml",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=5) as r:
+            html = r.read().decode("euc-kr", errors="ignore")
+    except Exception as e:
+        logger.warning("Naver KRX gold fetch failed for %s: %s", ticker, e)
+        return None
+
+    # 페이지에 21만원대 숫자가 단일로 떠있는 패턴 (KRX 1g 종가).
+    # 가격 변동에 따라 범위는 추후 조정 필요할 수 있음.
+    m = re.search(r"\b(1[5-9]\d,\d{3}|2[0-4]\d,\d{3})\b", html)
+    if not m:
+        logger.warning("KRX gold price not found in Naver page for %s", ticker)
+        return None
+    price = float(m.group(1).replace(",", ""))
+    return price, date.today(), None
+
+
 def _fetch_usdkrw() -> tuple[float, date] | None:
     """yfinance로 USDKRW 조회."""
     try:
@@ -205,7 +247,11 @@ def get_price(ticker: str, currency: str) -> PriceResult | None:
     """시세 조회. 라이브 → 실패 시 마지막 스냅샷 → 둘 다 없으면 None."""
     fetched: tuple[float, date, float | None] | None
     source: str
-    if currency == "USD":
+    if ticker.upper().startswith("KRX-GOLD"):
+        # KRX 금현물 — pykrx/KRX 공식 모두 막혀 네이버 marketindex 페이지 스크래핑
+        fetched = _fetch_krx_gold_price(ticker)
+        source = "naver_krx_gold"
+    elif currency == "USD":
         fetched = _fetch_us_price(ticker)
         source = "yfinance"
     elif currency == "KRW":
