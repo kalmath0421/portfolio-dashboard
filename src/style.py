@@ -4,9 +4,13 @@ from __future__ import annotations
 import streamlit as st
 
 
+_FONT_LINK = """
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+"""
+
 _CUSTOM_CSS = """
 <style>
-@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
 /* Inter 공식 CDN (Rasmus Andersson) — Google Fonts 의 unicode-range 쪼개기
    우회. 합성 볼드 차단. */
 @import url('https://rsms.me/inter/inter.css');
@@ -30,7 +34,7 @@ button, input, textarea, select,
 [data-testid="stSidebar"] *, [data-testid="stMetric"] *,
 [data-testid] p, [data-testid] span, [data-testid] div, [data-testid] label,
 h1, h2, h3, h4, h5, h6, p, span, div, label {
-    font-family: 'Inter', 'Pretendard',
+    font-family: 'Inter', 'Pretendard Variable', 'Pretendard',
                  -apple-system, BlinkMacSystemFont, 'Segoe UI',
                  'Apple SD Gothic Neo', 'Noto Sans KR',
                  'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji',
@@ -478,4 +482,5 @@ hr {
 
 def apply_theme() -> None:
     """앱 부팅 시 1회 호출 — 전체 화면에 커스텀 CSS 적용."""
+    st.markdown(_FONT_LINK, unsafe_allow_html=True)
     st.markdown(_CUSTOM_CSS, unsafe_allow_html=True)

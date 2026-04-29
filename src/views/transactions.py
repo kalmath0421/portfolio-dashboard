@@ -465,13 +465,16 @@ def _dividend_form() -> None:
 
         submitted = st.form_submit_button("저장", type="primary")
         if submitted:
+            # net 미입력 시 gross - withholding 으로 자동 보정
+            # (보통 가장 자주 누락되는 칸이라 0인 채로 저장되는 사고를 막음)
+            effective_net = net if net > 0 else max(gross - withholding, 0.0)
             try:
                 div_id = db.add_dividend(
                     pay_date=pay_date_val.isoformat(),
                     account_id=acct_id,
                     ticker=ticker,
                     gross_amount=gross,
-                    net_amount=net,
+                    net_amount=effective_net,
                     currency=ticker_currency,
                     withholding_tax=withholding,
                     fx_rate=fx_rate if ticker_currency == "USD" else None,
@@ -528,6 +531,58 @@ def _recent_dividends_panel() -> None:
         if confirm and st.button("삭제 실행", key="del_div_btn") and del_id > 0:
             db.delete_dividend(int(del_id))
             st.success(f"분배금 #{del_id} 삭제됨")
+            st.rerun()
+
+    with st.expander("🔧 누락된 세후값 일괄 보정"):
+        # 입력 시 '실입금액(세후)' 칸을 비워둬서 net_amount=0 으로 저장된 행을
+        # 표준 원천징수율(KRW 15.4%, USD 15%)로 한 번에 채워주는 1회용 버튼.
+        with db.transaction() as conn:
+            stat = conn.execute("""
+                SELECT
+                  SUM(CASE WHEN (net_amount IS NULL OR net_amount=0)
+                            AND gross_amount>0 AND currency='KRW'
+                           THEN 1 ELSE 0 END),
+                  SUM(CASE WHEN (net_amount IS NULL OR net_amount=0)
+                            AND gross_amount>0 AND currency='USD'
+                           THEN 1 ELSE 0 END),
+                  COALESCE(ROUND(SUM(CASE WHEN net_amount IS NULL OR net_amount=0
+                                          THEN gross_krw END), 0), 0)
+                FROM dividends
+            """).fetchone()
+        krw_zero, usd_zero, missing_krw = stat[0] or 0, stat[1] or 0, stat[2] or 0
+        st.markdown(
+            f"- 보정 대상 KRW 행: **{krw_zero}건**\n"
+            f"- 보정 대상 USD 행: **{usd_zero}건**\n"
+            f"- 현재 누락된 세후 추정 합계: **{int(missing_krw):,}원**"
+        )
+        st.caption(
+            "분배금 입력 시 '실입금액(세후)' 칸을 비워둬서 0으로 저장된 행을 "
+            "표준 원천징수율(KRW 15.4%, USD 15%)로 일괄 보정합니다. "
+            "정확한 입금액을 알면 개별 행을 직접 수정하는 게 정확합니다."
+        )
+        if (krw_zero + usd_zero) > 0 and st.button(
+            "🔧 일괄 보정 실행", type="primary", key="fix_div_net_btn"
+        ):
+            with db.transaction() as conn:
+                n1 = conn.execute("""
+                    UPDATE dividends
+                    SET net_amount = ROUND(gross_amount * 0.846, 0),
+                        withholding_tax = ROUND(gross_amount * 0.154, 0),
+                        net_krw = ROUND(gross_amount * 0.846, 0)
+                    WHERE (net_amount IS NULL OR net_amount = 0)
+                      AND gross_amount > 0
+                      AND currency = 'KRW'
+                """).rowcount
+                n2 = conn.execute("""
+                    UPDATE dividends
+                    SET net_amount = ROUND(gross_amount * 0.85, 4),
+                        withholding_tax = ROUND(gross_amount * 0.15, 4),
+                        net_krw = ROUND(gross_amount * 0.85 * fx_rate, 0)
+                    WHERE (net_amount IS NULL OR net_amount = 0)
+                      AND gross_amount > 0
+                      AND currency = 'USD'
+                """).rowcount
+            st.success(f"✅ 보정 완료 — KRW {n1}건, USD {n2}건")
             st.rerun()
 
 
