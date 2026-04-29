@@ -37,6 +37,7 @@ CATEGORIES = {
     "money_market_etf": "MMF성ETF",
     "us_stock": "미국주식",
     "kr_stock": "국내주식",
+    "krx_gold": "KRX 금현물",
 }
 
 # 카테고리별 기본 통화 — 카테고리만 선택하면 통화는 자동 결정.
@@ -48,6 +49,7 @@ CATEGORY_DEFAULT_CURRENCY = {
     "money_market_etf": "KRW",
     "us_stock": "USD",
     "kr_stock": "KRW",
+    "krx_gold": "KRW",
 }
 
 
